@@ -1,28 +1,34 @@
 'use client';
 import { useState } from 'react';
-import { Trash2, AlertCircle, CheckCircle, Plus, Check, Shield } from 'lucide-react';
+import { Trash2, AlertCircle, CheckCircle, Plus, Check, Shield, Crown, Zap, Users, Repeat } from 'lucide-react';
 import { useSquadStore } from '@/store/squadStore';
 import { MOCK_PLAYERS, CLUB_META } from '@/lib/mockData';
-import { SQUAD_RULES, formatCost } from '@/lib/fantasyRules';
+import { SQUAD_RULES, formatCost, BOOSTERS_LIST } from '@/lib/fantasyRules';
 import { PitchView } from './PitchView';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Budget Bar
 // ─────────────────────────────────────────────────────────────────────────────
 function BudgetBar() {
-  const { getRemainingBudget, getSpentBudget, squad } = useSquadStore();
+  const { getRemainingBudget, getSpentBudget, squad, activeBooster } = useSquadStore();
   const remaining = getRemainingBudget();
   const spent = getSpentBudget();
   const pct = Math.min((spent / SQUAD_RULES.TOTAL_BUDGET) * 100, 100);
-  const danger = remaining < 5_000_000;
+  const danger = remaining < 5_000_000 && activeBooster !== 'limit';
 
   return (
     <div style={{ padding: '16px 20px', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
         <div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Budget Remaining</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Budget Remaining
+          </div>
           <div className="font-condensed" style={{ fontSize: '28px', fontWeight: 800, color: danger ? 'var(--danger)' : 'var(--neon)', lineHeight: 1 }}>
-            {formatCost(remaining)}
+            {activeBooster === 'limit' ? (
+              <span style={{ color: '#A855F7' }}>∞ LIMITLESS</span>
+            ) : (
+              formatCost(remaining)
+            )}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -34,15 +40,17 @@ function BudgetBar() {
       </div>
       <div className="stat-bar">
         <div className="stat-bar-fill" style={{
-          width: `${pct}%`,
-          background: danger
+          width: activeBooster === 'limit' ? '100%' : `${pct}%`,
+          background: activeBooster === 'limit'
+            ? 'linear-gradient(90deg, #A855F7, #EC4899)'
+            : danger
             ? 'linear-gradient(90deg, #991B1B, #EF4444)'
             : 'linear-gradient(90deg, #166534, #22C55E)',
         }} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
         <span>{formatCost(spent)} spent</span>
-        <span>Budget: {formatCost(SQUAD_RULES.TOTAL_BUDGET)}</span>
+        <span>{activeBooster === 'limit' ? 'No salary cap' : `Budget: ${formatCost(SQUAD_RULES.TOTAL_BUDGET)}`}</span>
       </div>
     </div>
   );
@@ -52,7 +60,7 @@ function BudgetBar() {
 // Player Picker Panel
 // ─────────────────────────────────────────────────────────────────────────────
 function PlayerPicker({ position, jersey, onClose }: { position: string | null; jersey: number | null; onClose: () => void }) {
-  const { addPlayer, getClubCount, squad } = useSquadStore();
+  const { addPlayer, getClubCount, squad, activeBooster } = useSquadStore();
   const [search, setSearch] = useState('');
 
   // Strict string ID set to prevent ghost matches or duplicate adds
@@ -83,7 +91,7 @@ function PlayerPicker({ position, jersey, onClose }: { position: string | null; 
           onChange={e => setSearch(e.target.value)}
         />
       </div>
-      <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+      <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
         {filtered.length === 0 && (
           <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
             No eligible players found
@@ -92,6 +100,8 @@ function PlayerPicker({ position, jersey, onClose }: { position: string | null; 
         {filtered.map(p => {
           const clubMeta = CLUB_META[p.club] ?? { bg: 'rgba(255,255,255,0.1)', color: '#fff', abbr: p.club.slice(0, 3).toUpperCase() };
           const clubFull = getClubCount(p.club) >= SQUAD_RULES.MAX_PER_CLUB;
+          const matchStatus = p.matchStatus || (p.isInjured ? 'injured' : p.isSuspended ? 'suspended' : 'starting');
+
           return (
             <button key={p.id}
               disabled={clubFull}
@@ -120,14 +130,44 @@ function PlayerPicker({ position, jersey, onClose }: { position: string | null; 
               }}>
                 {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.name}
+                </div>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '3px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '10px', fontWeight: 700, color: clubMeta.color, background: clubMeta.bg, padding: '1px 4px', borderRadius: '3px' }}>
                     {clubMeta.abbr}
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.position}</span>
                   <span className="badge badge-gold" style={{ fontSize: '9px', padding: '1px 5px' }}>{p.tier}</span>
+
+                  {/* Match status pill */}
+                  {matchStatus === 'injured' && (
+                    <span style={{ fontSize: '9px', fontWeight: 800, color: '#EF4444', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', padding: '1px 5px', borderRadius: '4px' }}>
+                      🤕 Injured
+                    </span>
+                  )}
+                  {matchStatus === 'suspended' && (
+                    <span style={{ fontSize: '9px', fontWeight: 800, color: '#F59E0B', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', padding: '1px 5px', borderRadius: '4px' }}>
+                      🟨 Suspended
+                    </span>
+                  )}
+                  {matchStatus === 'bench' && (
+                    <span style={{
+                      fontSize: '9px', fontWeight: 800,
+                      color: activeBooster === 'bench' ? '#10B981' : '#60A5FA',
+                      background: activeBooster === 'bench' ? 'rgba(16,185,129,0.2)' : 'rgba(96,165,250,0.15)',
+                      border: `1px solid ${activeBooster === 'bench' ? 'rgba(16,185,129,0.5)' : 'rgba(96,165,250,0.3)'}`,
+                      padding: '1px 5px', borderRadius: '4px',
+                    }}>
+                      {activeBooster === 'bench' ? '⭐ BB +50%' : '🔄 Bench'}
+                    </span>
+                  )}
+                  {matchStatus === 'starting' && (
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#34D399', background: 'rgba(16,185,129,0.1)', padding: '1px 5px', borderRadius: '4px' }}>
+                      🟢 Starting
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -146,13 +186,14 @@ function PlayerPicker({ position, jersey, onClose }: { position: string | null; 
 // Main Squad Builder Page
 // ─────────────────────────────────────────────────────────────────────────────
 export function SquadBuilderPage() {
-  const { squad, captainId, validateSquad, validateForSave, resetSquad } = useSquadStore();
+  const { squad, captainId, validateSquad, validateForSave, resetSquad, activeBooster, setActiveBooster } = useSquadStore();
   const [pickerPosition, setPickerPosition] = useState<{ position: string | null; jersey: number | null }>({ position: null, jersey: null });
   const [showPicker, setShowPicker] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const baseValidation = validateSquad();
+  const activeBoosterObj = BOOSTERS_LIST.find(b => b.id === activeBooster);
 
   const handleSaveSquad = () => {
     setSaveError(null);
@@ -162,7 +203,7 @@ export function SquadBuilderPage() {
       return;
     }
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 4000);
+    setTimeout(() => setSaveSuccess(false), 4500);
   };
 
   return (
@@ -187,6 +228,43 @@ export function SquadBuilderPage() {
 
         {/* ── Pitch ──────────────────────────────────────────────────────── */}
         <div>
+          {/* Active Booster Announcement Banner */}
+          {activeBoosterObj && (
+            <div style={{
+              padding: '12px 16px', marginBottom: '14px',
+              borderRadius: '10px',
+              background: activeBoosterObj.bg,
+              border: `1.5px solid ${activeBoosterObj.color}66`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              boxShadow: `0 4px 16px ${activeBoosterObj.color}22`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '14px' }}>
+                  {activeBooster === 'triple' ? '👑' : activeBooster === 'limit' ? '⚡' : activeBooster === 'co' ? '👥' : '🔄'}
+                </span>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: activeBoosterObj.color }}>
+                    {activeBoosterObj.label} Chip Active for Round 4
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginTop: '1px' }}>
+                    {activeBoosterObj.description}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveBooster(null)}
+                style={{
+                  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700,
+                  color: '#FFF', cursor: 'pointer',
+                }}
+              >
+                ✕ Cancel Chip
+              </button>
+            </div>
+          )}
+
           {/* Validation banner — does NOT prematurely demand captaincy while adding players */}
           {squad.length > 0 && (
             <div style={{
@@ -238,6 +316,11 @@ export function SquadBuilderPage() {
               display: 'flex', alignItems: 'center', gap: '10px', color: '#34D399', fontSize: '13px', fontWeight: 700,
             }}>
               <Check size={18} /> Squad successfully locked in and saved for Round 4!
+              {activeBoosterObj && (
+                <span style={{ color: activeBoosterObj.color, fontWeight: 800 }}>
+                  ({activeBoosterObj.label} boost applied)
+                </span>
+              )}
             </div>
           )}
 
@@ -284,6 +367,92 @@ export function SquadBuilderPage() {
               onClose={() => { setShowPicker(false); setPickerPosition({ position: null, jersey: null }); }}
             />
           )}
+
+          {/* ── Round Boosters Selection Card ── */}
+          <div className="card" style={{ padding: '16px', background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Round 4 Boosters
+              </h3>
+              {activeBooster && (
+                <button
+                  type="button"
+                  onClick={() => setActiveBooster(null)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--danger)', fontSize: '11px', fontWeight: 700,
+                  }}
+                >
+                  ✕ Remove
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.4 }}>
+              Select a boost chip to apply for this round before saving:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {BOOSTERS_LIST.map(b => {
+                const isSelected = activeBooster === b.id;
+                const Icon = b.id === 'triple' ? Crown : b.id === 'limit' ? Zap : b.id === 'co' ? Users : Repeat;
+
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setActiveBooster(isSelected ? null : b.id)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: `1.5px solid ${isSelected ? b.color : 'rgba(255,255,255,0.08)'}`,
+                      background: isSelected ? b.bg : 'rgba(255,255,255,0.02)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s',
+                      boxShadow: isSelected ? `0 0 14px ${b.color}40` : 'none',
+                    }}
+                  >
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px',
+                      background: isSelected ? b.color : 'rgba(255,255,255,0.06)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <Icon size={14} color={isSelected ? '#000' : b.color} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: isSelected ? b.color : 'var(--text-primary)' }}>
+                          {b.label}
+                        </span>
+                        <span style={{ fontSize: '9px', fontWeight: 900, color: b.color, background: 'rgba(0,0,0,0.4)', padding: '1px 5px', borderRadius: '4px' }}>
+                          {b.short}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', lineHeight: 1.3, marginTop: '2px' }}>
+                        {b.description}
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0 }}>
+                      {isSelected ? (
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: b.color }}>
+                          ✓ Active
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          Apply
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Position requirements */}
           <div className="card" style={{ padding: '16px' }}>

@@ -19,55 +19,40 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     let isMounted = true;
 
     async function verifyAdminAccess() {
-      // 1. Prototype mode (Supabase unconfigured)
-      if (!isSupabaseConfigured || !supabase) {
-        const hasMockAdmin = typeof window !== 'undefined' && sessionStorage.getItem('kc_admin_session') === 'true';
-        if (!hasMockAdmin) {
-          if (isMounted) {
-            setIsAuthorized(false);
-            router.replace('/admin/login');
-          }
-          return;
-        }
+      // 1. Check isolated Admin session (stored in sessionStorage from /api/admin/auth)
+      const hasAdminSession = typeof window !== 'undefined' && sessionStorage.getItem('kc_admin_session') === 'true';
+      if (hasAdminSession) {
         if (isMounted) setIsAuthorized(true);
         return;
       }
 
-      // 2. Production Supabase check
-      try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          if (isMounted) {
-            setIsAuthorized(false);
-            router.replace('/admin/login');
+      // 2. Check if a Supabase user with explicit is_admin privileges is active
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          if (!userError && user) {
+            const { data: profile } = await supabase
+              .from('fantasy_users')
+              .select('is_admin')
+              .eq('id', user.id)
+              .single();
+
+            if (profile?.is_admin) {
+              sessionStorage.setItem('kc_admin_session', 'true');
+              sessionStorage.setItem('kc_admin_email', user.email ?? '');
+              if (isMounted) setIsAuthorized(true);
+              return;
+            }
           }
-          return;
+        } catch {
+          // Fall through to redirect
         }
+      }
 
-        // Query database to ensure role / is_admin flag is true
-        const { data: profile, error: profileError } = await supabase
-          .from('fantasy_users')
-          .select('is_admin')
-          .eq('id', user.id)
-          .single();
-
-        const isAdmin = !!(profile as { is_admin?: boolean } | null)?.is_admin;
-
-        if (profileError || !isAdmin) {
-          // Regular fan trying to access /admin -> eject to landing page
-          if (isMounted) {
-            setIsAuthorized(false);
-            router.replace('/');
-          }
-          return;
-        }
-
-        if (isMounted) setIsAuthorized(true);
-      } catch {
-        if (isMounted) {
-          setIsAuthorized(false);
-          router.replace('/');
-        }
+      // Not authorized: redirect to dedicated admin login (NOT to fan home page)
+      if (isMounted) {
+        setIsAuthorized(false);
+        router.replace('/admin/login');
       }
     }
 

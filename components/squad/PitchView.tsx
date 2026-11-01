@@ -4,7 +4,7 @@ import { Plus, X, Crown, Star, Zap, Users, Repeat } from 'lucide-react';
 import { useSquadStore } from '@/store/squadStore';
 import { CLUB_META } from '@/lib/mockData';
 import { formatCost } from '@/lib/fantasyRules';
-import { Player } from '@/types/fantasy';
+import { Player, BoosterType } from '@/types/fantasy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Perfectly Symmetrical 12-Column Rugby Union 1–15 Formation Layout
@@ -189,15 +189,53 @@ interface PitchSlotProps {
   player: Player | null;
   isCaptain: boolean;
   isViceCaptain: boolean;
+  activeBooster: BoosterType | null;
   onAdd: () => void;
   onRemove: (player: Player) => void;
   onSetCaptain: (player: Player) => void;
   onSetViceCaptain: (player: Player) => void;
 }
 
-function PitchSlot({ slot, player, isCaptain, isViceCaptain, onAdd, onRemove, onSetCaptain, onSetViceCaptain }: PitchSlotProps) {
+function PitchSlot({ slot, player, isCaptain, isViceCaptain, activeBooster, onAdd, onRemove, onSetCaptain, onSetViceCaptain }: PitchSlotProps) {
   const [showMenu, setShowMenu] = useState(false);
   const clubMeta = player ? (CLUB_META[player.club] ?? { bg: 'rgba(255,255,255,0.1)', color: '#fff', abbr: player.club.slice(0, 3).toUpperCase() }) : null;
+
+  // Resolve player match status
+  const matchStatus = player?.matchStatus || (player?.isInjured ? 'injured' : player?.isSuspended ? 'suspended' : 'starting');
+  const isBench = matchStatus === 'bench';
+  const isInjured = matchStatus === 'injured' || !!player?.isInjured;
+  const isSuspended = matchStatus === 'suspended' || !!player?.isSuspended;
+
+  // Compute Captain badge text & styling depending on active boost
+  let captainBadgeText = 'C';
+  let captainBadgeBg = 'var(--gold)';
+  let captainBadgeColor = '#000';
+  let captainGlow = 'rgba(212,175,55,0.8)';
+
+  if (isCaptain) {
+    if (activeBooster === 'triple') {
+      captainBadgeText = '3×';
+      captainBadgeBg = 'linear-gradient(135deg, #F59E0B, #DC2626)';
+      captainBadgeColor = '#FFF';
+      captainGlow = 'rgba(245,158,11,0.9)';
+    } else if (activeBooster === 'co') {
+      captainBadgeText = '2×';
+      captainBadgeBg = '#F59E0B';
+      captainBadgeColor = '#000';
+    }
+  } else if (isViceCaptain) {
+    if (activeBooster === 'co') {
+      captainBadgeText = '2×';
+      captainBadgeBg = '#3B82F6';
+      captainBadgeColor = '#FFF';
+      captainGlow = 'rgba(59,130,246,0.9)';
+    } else {
+      captainBadgeText = 'V';
+      captainBadgeBg = '#8B5CF6';
+      captainBadgeColor = '#000';
+      captainGlow = 'rgba(139,92,246,0.8)';
+    }
+  }
 
   return (
     <div style={{
@@ -222,30 +260,55 @@ function PitchSlot({ slot, player, isCaptain, isViceCaptain, onAdd, onRemove, on
             {/* Captain / VC Badge */}
             {(isCaptain || isViceCaptain) && (
               <div style={{
-                position: 'absolute', top: '-6px', right: '-3px', zIndex: 30,
-                width: '20px', height: '20px', borderRadius: '50%',
-                background: isCaptain ? 'var(--gold)' : '#8B5CF6',
+                position: 'absolute', top: '-7px', right: '-4px', zIndex: 32,
+                minWidth: '22px', height: '22px', padding: '0 3px', borderRadius: '11px',
+                background: captainBadgeBg,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: `0 0 10px ${isCaptain ? 'rgba(212,175,55,0.8)' : 'rgba(139,92,246,0.8)'}`,
-                fontSize: '9.5px', fontWeight: 900, color: '#000',
+                boxShadow: `0 0 12px ${captainGlow}`,
+                fontSize: '9.5px', fontWeight: 900, color: captainBadgeColor,
+                border: '1.5px solid #000',
               }}>
-                {isCaptain ? 'C' : 'V'}
+                {captainBadgeText}
+              </div>
+            )}
+
+            {/* Match Status Badge: Bench (+50% bonus if active), Injured, Suspended */}
+            {(isBench || isInjured || isSuspended) && (
+              <div style={{
+                position: 'absolute', top: '-7px', left: '-5px', zIndex: 32,
+                padding: '1px 4px', borderRadius: '4px',
+                background: isInjured ? '#EF4444' : isSuspended ? '#F59E0B' : (activeBooster === 'bench' ? '#10B981' : 'rgba(16,185,129,0.9)'),
+                color: '#FFFFFF',
+                boxShadow: isInjured
+                  ? '0 0 8px rgba(239,68,68,0.8)'
+                  : activeBooster === 'bench' && isBench
+                  ? '0 0 10px rgba(16,185,129,0.9)'
+                  : '0 2px 5px rgba(0,0,0,0.5)',
+                fontSize: '8px', fontWeight: 900, letterSpacing: '0.04em',
+                border: '1px solid rgba(0,0,0,0.5)',
+              }}>
+                {isInjured ? 'INJ' : isSuspended ? 'SUSP' : (activeBooster === 'bench' ? 'BB+50%' : 'SUB')}
               </div>
             )}
 
             {/* Avatar Circle */}
             <button
+              type="button"
               onClick={() => setShowMenu(v => !v)}
               style={{
                 width: 'clamp(46px, 9vw, 60px)',
                 height: 'clamp(46px, 9vw, 60px)',
                 borderRadius: '50%',
-                border: `2px solid ${isCaptain ? 'var(--gold)' : isViceCaptain ? '#8B5CF6' : clubMeta?.color ?? '#fff'}`,
+                border: `2px solid ${isCaptain ? 'var(--gold)' : isViceCaptain ? '#8B5CF6' : (activeBooster === 'bench' && isBench) ? '#10B981' : clubMeta?.color ?? '#fff'}`,
                 background: clubMeta?.bg ?? 'rgba(0,0,0,0.6)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 'clamp(10px, 2vw, 12px)', fontWeight: 800, color: clubMeta?.color ?? '#fff',
                 cursor: 'pointer', margin: '0 auto 3px',
-                boxShadow: isCaptain ? '0 0 12px rgba(212,175,55,0.6)' : '0 4px 12px rgba(0,0,0,0.4)',
+                boxShadow: isCaptain
+                  ? '0 0 12px rgba(212,175,55,0.6)'
+                  : (activeBooster === 'bench' && isBench)
+                  ? '0 0 12px rgba(16,185,129,0.6)'
+                  : '0 4px 12px rgba(0,0,0,0.4)',
                 backdropFilter: 'blur(6px)',
               }}
             >
@@ -254,8 +317,8 @@ function PitchSlot({ slot, player, isCaptain, isViceCaptain, onAdd, onRemove, on
 
             {/* Player Info Box */}
             <div style={{
-              background: 'rgba(3, 8, 6, 0.8)',
-              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(3, 8, 6, 0.85)',
+              border: `1px solid ${activeBooster === 'bench' && isBench ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.12)'}`,
               borderRadius: '5px',
               padding: '1px 3px',
               backdropFilter: 'blur(4px)',
@@ -274,15 +337,17 @@ function PitchSlot({ slot, player, isCaptain, isViceCaptain, onAdd, onRemove, on
             </div>
 
             {/* Jersey Number Tag */}
-            <div style={{
-              position: 'absolute', top: '-3px', left: '-3px',
-              width: '16px', height: '16px', borderRadius: '3px',
-              background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.2)',
-              fontSize: '8.5px', fontWeight: 900, color: '#F8FAFC',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {slot.jersey}
-            </div>
+            {!isBench && !isInjured && !isSuspended && (
+              <div style={{
+                position: 'absolute', top: '-3px', left: '-3px',
+                width: '16px', height: '16px', borderRadius: '3px',
+                background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.2)',
+                fontSize: '8.5px', fontWeight: 900, color: '#F8FAFC',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {slot.jersey}
+              </div>
+            )}
 
             {/* Dropdown Action Menu */}
             {showMenu && (
@@ -318,6 +383,7 @@ function PitchSlot({ slot, player, isCaptain, isViceCaptain, onAdd, onRemove, on
               {slot.jersey}
             </div>
             <button
+              type="button"
               onClick={onAdd}
               style={{
                 width: 'clamp(44px, 8.5vw, 56px)',
@@ -366,8 +432,7 @@ const menuItemStyle: React.CSSProperties = {
 // Main Pitch View Component with Responsive Mobile-First Handling
 // ─────────────────────────────────────────────────────────────────────────────
 export function PitchView({ onAddPlayer }: { onAddPlayer?: (jersey: number, position: string) => void }) {
-  const { squad, captainId, viceCaptainId, removePlayer, setCaptain, setViceCaptain } = useSquadStore();
-  const [activeBooster, setActiveBooster] = useState<string | null>(null);
+  const { squad, captainId, viceCaptainId, removePlayer, setCaptain, setViceCaptain, activeBooster, setActiveBooster } = useSquadStore();
 
   // Directly map slot jersey to the squad player (100% reliable)
   const squadMap = new Map<number, Player>();
@@ -378,41 +443,85 @@ export function PitchView({ onAddPlayer }: { onAddPlayer?: (jersey: number, posi
     }
   });
 
+  const activeBoosterObj = BOOSTERS.find(b => b.id === activeBooster);
+
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: '920px', margin: '0 auto' }}>
 
-      {/* ── Boosters Row / HUD (Responsive: Top bar on mobile, pinned on desktop) ── */}
+      {/* ── Boosters Row / HUD (Position relative, zIndex 50, pointerEvents auto) ── */}
       <div className="boosters-container" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        gap: '6px', marginBottom: '8px', zIndex: 40,
+        position: 'relative',
+        zIndex: 50,
+        pointerEvents: 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px',
+        marginBottom: '10px',
+        padding: '8px 12px',
+        background: 'rgba(10, 18, 14, 0.75)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        backdropFilter: 'blur(12px)',
       }}>
-        <span style={{
-          fontSize: '9px', fontWeight: 900, color: 'rgba(255,255,255,0.4)',
-          textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: '4px',
-        }}>
-          Boosters:
-        </span>
-        {BOOSTERS.map(({ id, icon: Icon, label, short, color, bg }) => {
-          const used = activeBooster === id;
-          return (
-            <button key={id} onClick={() => setActiveBooster(used ? null : id)}
-              title={label}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '6px 9px', borderRadius: '8px',
-                border: `1px solid ${used ? color : `${color}44`}`,
-                background: used ? bg : 'rgba(5, 12, 10, 0.65)',
-                cursor: 'pointer', backdropFilter: 'blur(8px)',
-                transition: 'all 0.2s',
-                boxShadow: used ? `0 0 12px ${color}55` : 'none',
-              }}>
-              <Icon size={13} color={color} />
-              <span style={{ fontSize: '9.5px', fontWeight: 800, color: used ? color : 'rgba(255,255,255,0.7)', letterSpacing: '0.04em' }}>
-                {short}
-              </span>
-            </button>
-          );
-        })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{
+            fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.6)',
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+          }}>
+            Round Boosters:
+          </span>
+          {activeBoosterObj ? (
+            <span style={{
+              fontSize: '10px', fontWeight: 800, color: activeBoosterObj.color,
+              background: activeBoosterObj.bg, padding: '2px 8px', borderRadius: '6px',
+              border: `1px solid ${activeBoosterObj.color}66`,
+              display: 'flex', alignItems: 'center', gap: '4px',
+            }}>
+              ● {activeBoosterObj.label} Active
+            </span>
+          ) : (
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+              (Tap a chip to apply)
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          {BOOSTERS.map(({ id, icon: Icon, label, short, color, bg }) => {
+            const used = activeBooster === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveBooster(used ? null : (id as BoosterType))}
+                title={label}
+                style={{
+                  position: 'relative',
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  padding: '6px 11px', borderRadius: '8px',
+                  border: `1px solid ${used ? color : `${color}44`}`,
+                  background: used ? bg : 'rgba(5, 12, 10, 0.85)',
+                  cursor: 'pointer', backdropFilter: 'blur(8px)',
+                  transition: 'all 0.2s',
+                  boxShadow: used ? `0 0 14px ${color}66` : 'none',
+                  pointerEvents: 'auto',
+                }}>
+                <Icon size={13} color={color} />
+                <span style={{ fontSize: '10px', fontWeight: 800, color: used ? color : 'rgba(255,255,255,0.85)', letterSpacing: '0.04em' }}>
+                  {short}
+                </span>
+                {used && (
+                  <span style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    background: color, boxShadow: `0 0 6px ${color}`,
+                  }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── 3D Centered Pitch Container ───────────────────────────────────── */}
@@ -474,6 +583,7 @@ export function PitchView({ onAddPlayer }: { onAddPlayer?: (jersey: number, posi
                   player={player}
                   isCaptain={!!(player && captainId === String(player.id))}
                   isViceCaptain={!!(player && viceCaptainId === String(player.id))}
+                  activeBooster={activeBooster}
                   onAdd={() => onAddPlayer?.(slot.jersey, slot.position)}
                   onRemove={p => removePlayer(p.id)}
                   onSetCaptain={p => setCaptain(p.id)}

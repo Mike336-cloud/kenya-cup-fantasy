@@ -49,6 +49,17 @@ export interface ClubRecord {
 }
 
 export type PositionGroup = 'Forward' | 'Back';
+export type MatchStatus = 'starting' | 'bench' | 'injured' | 'suspended';
+export type BoosterType = 'triple' | 'limit' | 'co' | 'bench';
+
+export interface Booster {
+  id: BoosterType;
+  label: string;
+  short: string;
+  color: string;
+  bg: string;
+  description: string;
+}
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 export interface Player {
@@ -73,6 +84,7 @@ export interface Player {
   isInjured: boolean;
   isSuspended: boolean;
   isActive: boolean;             // false = soft-deleted
+  matchStatus?: MatchStatus;     // 'starting' | 'bench' | 'injured' | 'suspended'
 }
 
 // ─── Admin User ───────────────────────────────────────────────────────────────
@@ -156,6 +168,7 @@ export interface Squad {
   players: SquadPlayer[];
   captainId: string | null;
   viceCaptainId: string | null;
+  activeBooster?: BoosterType | null;
   createdAt: string;
   updatedAt: string;
   isLocked: boolean;

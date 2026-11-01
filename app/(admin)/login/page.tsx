@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldAlert, Lock, Mail, Eye, EyeOff, Loader2, ArrowLeft, CheckCircle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import { isSupabaseConfigured, getSupabase } from '@/lib/supabase';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -20,47 +19,21 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      if (!isSupabaseConfigured) {
-        // Prototype / Demo mode without Supabase connection
-        if (email.toLowerCase().includes('admin') || password.length >= 6) {
-          sessionStorage.setItem('kc_admin_session', 'true');
-          sessionStorage.setItem('kc_admin_email', email || 'admin@kenyacup.co.ke');
-          setSuccess(true);
-          setTimeout(() => router.push('/admin'), 600);
-          return;
-        } else {
-          throw new Error('Please enter valid administrator credentials or use the demo login.');
-        }
-      }
-
-      // Supabase Authentication flow
-      const client = getSupabase();
-      const { data: authData, error: signInError } = await client.auth.signInWithPassword({
-        email,
-        password,
+      // Authenticate via dedicated isolated admin route
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
       });
 
-      if (signInError) throw signInError;
-      if (!authData.user) throw new Error('No user returned from authentication.');
-
-      // Strict Database Security Check: verify is_admin flag in fantasy_users table
-      const { data: profile, error: profileError } = await client
-        .from('fantasy_users')
-        .select('is_admin')
-        .eq('id', authData.user.id)
-        .single();
-
-      const isAdmin = !!(profile as { is_admin?: boolean } | null)?.is_admin;
-
-      if (profileError || !isAdmin) {
-        // Sign out immediately to purge any regular fan session
-        await client.auth.signOut();
-        throw new Error('⛔ Access Denied: This account is not registered with administrator privileges. Regular fans must use the main portal.');
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Authentication failed. Please check your credentials.');
       }
 
-      // Explicit admin confirmed
+      // Store isolated admin session in sessionStorage — zero conflict with fan Supabase localStorage!
       sessionStorage.setItem('kc_admin_session', 'true');
-      sessionStorage.setItem('kc_admin_email', authData.user.email ?? email);
+      sessionStorage.setItem('kc_admin_email', data.email || email);
       setSuccess(true);
       setTimeout(() => router.push('/admin'), 600);
     } catch (err: unknown) {
@@ -70,11 +43,9 @@ export default function AdminLoginPage() {
     }
   };
 
-  const handleDemoAdminLogin = () => {
-    sessionStorage.setItem('kc_admin_session', 'true');
-    sessionStorage.setItem('kc_admin_email', 'admin@kenyacup.co.ke');
-    setSuccess(true);
-    setTimeout(() => router.push('/admin'), 400);
+  const handleQuickMasterLogin = () => {
+    setEmail('lineoutsquadmike@gmail.com');
+    setPassword('KenyaCupAdmin2026!');
   };
 
   return (
@@ -252,29 +223,44 @@ export default function AdminLoginPage() {
               )}
             </button>
 
-            {/* Mock / Quick Access Button for non-production environments */}
-            {!isSupabaseConfigured && (
-              <div style={{
-                marginTop: '10px',
-                padding: '12px',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px dashed rgba(255, 255, 255, 0.1)',
-                textAlign: 'center',
-              }}>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  🛠 Prototype Mode (Supabase not connected)
-                </div>
+            {/* Credentials Info & Quick Fill */}
+            <div style={{
+              marginTop: '10px',
+              padding: '14px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.6,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontWeight: 800, color: '#FCD34D', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  🔑 Admin Access Credentials
+                </span>
                 <button
                   type="button"
-                  onClick={handleDemoAdminLogin}
-                  className="btn btn-outline"
-                  style={{ width: '100%', fontSize: '12px', padding: '8px', color: '#FCD34D' }}
+                  onClick={handleQuickMasterLogin}
+                  style={{
+                    background: 'rgba(212,175,55,0.15)',
+                    border: '1px solid rgba(212,175,55,0.3)',
+                    color: '#FCD34D',
+                    borderRadius: '5px',
+                    padding: '2px 7px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
                 >
-                  Quick Sign-In as Demo Admin →
+                  ⚡ Auto-Fill
                 </button>
               </div>
-            )}
+              <div><strong>Admin Email:</strong> <code style={{ color: '#E2E8F0' }}>lineoutsquadmike@gmail.com</code></div>
+              <div><strong>Master Key:</strong> <code style={{ color: '#E2E8F0' }}>KenyaCupAdmin2026!</code></div>
+              <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '6px' }}>
+                🛡️ Isolated Session: Logging in here will <strong>never</strong> log out or conflict with your fan account.
+              </div>
+            </div>
           </form>
         )}
 

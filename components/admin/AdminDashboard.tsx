@@ -102,21 +102,17 @@ export function AdminDashboard() {
             Logged in as admin
           </div>
           <button
-            onClick={async () => {
+            onClick={() => {
               if (typeof window !== 'undefined') {
                 sessionStorage.removeItem('kc_admin_session');
                 sessionStorage.removeItem('kc_admin_email');
               }
-              const { supabase } = await import('@/lib/supabase');
-              if (supabase) {
-                await supabase.auth.signOut();
-              }
-              router.push('/');
+              router.push('/admin/login');
             }}
             className="btn btn-danger"
             style={{ width: '100%', fontSize: '12px', padding: '8px' }}
           >
-            <LogOut size={13} /> Sign Out
+            <LogOut size={13} /> Sign Out Admin
           </button>
         </div>
       </aside>

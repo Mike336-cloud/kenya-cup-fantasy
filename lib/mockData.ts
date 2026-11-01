@@ -30,6 +30,10 @@ function mkPlayer(
   ];
   const matchKickoffTime = kickoffTimes[(_id - 1) % kickoffTimes.length];
 
+  const isInjured = extra?.isInjured ?? false;
+  const isSuspended = extra?.isSuspended ?? false;
+  const matchStatus = isInjured ? 'injured' : isSuspended ? 'suspended' : (extra?.matchStatus ?? 'starting');
+
   return {
     id: uid(),
     name,
@@ -44,10 +48,11 @@ function mkPlayer(
     matchKickoffTime,
     form,
     totalPoints,
-    isInjured: false,
-    isSuspended: false,
+    isInjured,
+    isSuspended,
     isActive: true,
     headshot_url: null,
+    matchStatus,
     ...extra,
   };
 }
@@ -57,76 +62,76 @@ function mkPlayer(
 // ─────────────────────────────────────────────────────────────────────────────
 export const MOCK_PLAYERS: Player[] = [
   // ── Kabras Sugar (4 players) ──────────────────────────────────────────────
-  mkPlayer('Brian Juma',        'Kabras Sugar', 'Prop',       'Tier 1', 10_000_000, 9.2, 187),
-  mkPlayer('Vincent Onyala',    'Kabras Sugar', 'Wing',       'Tier 1', 10_000_000, 9.5, 201),
-  mkPlayer('Griffin Musyoki',   'Kabras Sugar', 'Flanker',    'Tier 2',  7_500_000, 7.8, 134),
-  mkPlayer('Samuel Asati',      'Kabras Sugar', 'Scrum-half', 'Tier 2',  7_500_000, 8.1, 142),
+  mkPlayer('Brian Juma',        'Kabras Sugar', 'Prop',       'Tier 1', 10_000_000, 9.2, 187, { matchStatus: 'starting' }),
+  mkPlayer('Vincent Onyala',    'Kabras Sugar', 'Wing',       'Tier 1', 10_000_000, 9.5, 201, { matchStatus: 'starting' }),
+  mkPlayer('Griffin Musyoki',   'Kabras Sugar', 'Flanker',    'Tier 2',  7_500_000, 7.8, 134, { matchStatus: 'bench' }),
+  mkPlayer('Samuel Asati',      'Kabras Sugar', 'Scrum-half', 'Tier 2',  7_500_000, 8.1, 142, { matchStatus: 'starting' }),
 
   // ── KCB Rugby (4 players) ─────────────────────────────────────────────────
-  mkPlayer('Darwin Mukidza',    'KCB Rugby',    'Fly-half',   'Tier 1', 10_000_000, 9.0, 193, { isJumper: false }),
-  mkPlayer('Curtis Lilako',     'KCB Rugby',    'Lock',       'Tier 2',  7_500_000, 7.5, 128),
-  mkPlayer('Tony Odhiambo',     'KCB Rugby',    'Number 8',   'Tier 2',  7_500_000, 8.3, 151),
-  mkPlayer('Alvin Otieno',      'KCB Rugby',    'Center',     'Tier 3',  5_500_000, 6.4, 98),
+  mkPlayer('Darwin Mukidza',    'KCB Rugby',    'Fly-half',   'Tier 1', 10_000_000, 9.0, 193, { isJumper: false, matchStatus: 'starting' }),
+  mkPlayer('Curtis Lilako',     'KCB Rugby',    'Lock',       'Tier 2',  7_500_000, 7.5, 128, { matchStatus: 'bench' }),
+  mkPlayer('Tony Odhiambo',     'KCB Rugby',    'Number 8',   'Tier 2',  7_500_000, 8.3, 151, { matchStatus: 'starting' }),
+  mkPlayer('Alvin Otieno',      'KCB Rugby',    'Center',     'Tier 3',  5_500_000, 6.4, 98,  { matchStatus: 'injured', isInjured: true }),
 
   // ── Menengai Oilers (4 players) ───────────────────────────────────────────
-  mkPlayer('Joseph Odero',      'Menengai Oilers', 'Hooker',    'Tier 1', 10_000_000, 8.7, 174),
-  mkPlayer('Bethuel Anami',     'Menengai Oilers', 'Prop',      'Tier 2',  7_500_000, 7.2, 121),
-  mkPlayer('Collins Shivachi',  'Menengai Oilers', 'Flanker',   'Tier 3',  5_500_000, 6.9, 109),
-  mkPlayer('Rodney Wanjala',    'Menengai Oilers', 'Full-back', 'Tier 2',  7_500_000, 7.8, 138),
+  mkPlayer('Joseph Odero',      'Menengai Oilers', 'Hooker',    'Tier 1', 10_000_000, 8.7, 174, { matchStatus: 'starting' }),
+  mkPlayer('Bethuel Anami',     'Menengai Oilers', 'Prop',      'Tier 2',  7_500_000, 7.2, 121, { matchStatus: 'starting' }),
+  mkPlayer('Collins Shivachi',  'Menengai Oilers', 'Flanker',   'Tier 3',  5_500_000, 6.9, 109, { matchStatus: 'bench' }),
+  mkPlayer('Rodney Wanjala',    'Menengai Oilers', 'Full-back', 'Tier 2',  7_500_000, 7.8, 138, { matchStatus: 'starting' }),
 
   // ── Kenya Harlequin (4 players) ───────────────────────────────────────────
-  mkPlayer('Dan Sikuta',        'Kenya Harlequin', 'Lock',      'Tier 2',  7_500_000, 7.6, 130),
-  mkPlayer('Moses Amusala',     'Kenya Harlequin', 'Fly-half',  'Tier 2',  7_500_000, 8.0, 145),
-  mkPlayer('Peter Kilonzo',     'Kenya Harlequin', 'Wing',      'Tier 3',  5_500_000, 6.5, 101),
-  mkPlayer('Timothy Wandera',   'Kenya Harlequin', 'Prop',      'Tier 3',  5_500_000, 6.2, 95),
+  mkPlayer('Dan Sikuta',        'Kenya Harlequin', 'Lock',      'Tier 2',  7_500_000, 7.6, 130, { matchStatus: 'starting' }),
+  mkPlayer('Moses Amusala',     'Kenya Harlequin', 'Fly-half',  'Tier 2',  7_500_000, 8.0, 145, { matchStatus: 'starting' }),
+  mkPlayer('Peter Kilonzo',     'Kenya Harlequin', 'Wing',      'Tier 3',  5_500_000, 6.5, 101, { matchStatus: 'bench' }),
+  mkPlayer('Timothy Wandera',   'Kenya Harlequin', 'Prop',      'Tier 3',  5_500_000, 6.2, 95,  { matchStatus: 'suspended', isSuspended: true }),
 
   // ── Strathmore Leos (4 players) ───────────────────────────────────────────
-  mkPlayer('Michael Kariuki',   'Strathmore Leos', 'Scrum-half', 'Tier 2', 7_500_000, 7.9, 137),
-  mkPlayer('Joshua Monda',      'Strathmore Leos', 'Center',     'Tier 2', 7_500_000, 7.4, 125),
-  mkPlayer('Francis Oduya',     'Strathmore Leos', 'Number 8',   'Tier 3', 5_500_000, 6.8, 107),
-  mkPlayer('Patrick Omondi',    'Strathmore Leos', 'Flanker',    'Tier 3', 5_500_000, 6.3, 97),
+  mkPlayer('Michael Kariuki',   'Strathmore Leos', 'Scrum-half', 'Tier 2', 7_500_000, 7.9, 137, { matchStatus: 'starting' }),
+  mkPlayer('Joshua Monda',      'Strathmore Leos', 'Center',     'Tier 2', 7_500_000, 7.4, 125, { matchStatus: 'starting' }),
+  mkPlayer('Francis Oduya',     'Strathmore Leos', 'Number 8',   'Tier 3', 5_500_000, 6.8, 107, { matchStatus: 'bench' }),
+  mkPlayer('Patrick Omondi',    'Strathmore Leos', 'Flanker',    'Tier 3', 5_500_000, 6.3, 97,  { matchStatus: 'starting' }),
 
   // ── KU Blak Blad (4 players) ──────────────────────────────────────────────
-  mkPlayer('Charles Ooko',      'KU Blak Blad', 'Hooker',    'Tier 2', 7_500_000, 7.1, 118),
-  mkPlayer('Edwin Oloo',        'KU Blak Blad', 'Lock',      'Tier 3', 5_500_000, 6.7, 104),
-  mkPlayer('Paul Muriithi',     'KU Blak Blad', 'Center',    'Tier 3', 5_500_000, 6.0, 91),
-  mkPlayer('George Agutu',      'KU Blak Blad', 'Full-back', 'Tier 4', 3_500_000, 5.2, 68),
+  mkPlayer('Charles Ooko',      'KU Blak Blad', 'Hooker',    'Tier 2', 7_500_000, 7.1, 118, { matchStatus: 'starting' }),
+  mkPlayer('Edwin Oloo',        'KU Blak Blad', 'Lock',      'Tier 3', 5_500_000, 6.7, 104, { matchStatus: 'bench' }),
+  mkPlayer('Paul Muriithi',     'KU Blak Blad', 'Center',    'Tier 3', 5_500_000, 6.0, 91,  { matchStatus: 'starting' }),
+  mkPlayer('George Agutu',      'KU Blak Blad', 'Full-back', 'Tier 4', 3_500_000, 5.2, 68,  { matchStatus: 'starting' }),
 
   // ── Nondescripts (4 players) ──────────────────────────────────────────────
-  mkPlayer('Ian Karanja',       'Nondescripts', 'Prop',       'Tier 2', 7_500_000, 7.3, 122),
-  mkPlayer('David Wachira',     'Nondescripts', 'Flanker',    'Tier 2', 7_500_000, 7.5, 129),
-  mkPlayer('Stephen Mwangi',    'Nondescripts', 'Wing',       'Tier 3', 5_500_000, 6.4, 99),
-  mkPlayer('Alex Muriuki',      'Nondescripts', 'Scrum-half', 'Tier 4', 3_500_000, 4.9, 61),
+  mkPlayer('Ian Karanja',       'Nondescripts', 'Prop',       'Tier 2', 7_500_000, 7.3, 122, { matchStatus: 'starting' }),
+  mkPlayer('David Wachira',     'Nondescripts', 'Flanker',    'Tier 2', 7_500_000, 7.5, 129, { matchStatus: 'starting' }),
+  mkPlayer('Stephen Mwangi',    'Nondescripts', 'Wing',       'Tier 3', 5_500_000, 6.4, 99,  { matchStatus: 'bench' }),
+  mkPlayer('Alex Muriuki',      'Nondescripts', 'Scrum-half', 'Tier 4', 3_500_000, 4.9, 61,  { matchStatus: 'injured', isInjured: true }),
 
   // ── Nakuru (4 players) ────────────────────────────────────────────────────
-  mkPlayer('John Kamau',        'Nakuru', 'Lock',      'Tier 2', 7_500_000, 7.2, 120),
-  mkPlayer('Samuel Gachuhi',    'Nakuru', 'Number 8',  'Tier 3', 5_500_000, 6.6, 103),
-  mkPlayer('Peter Kiprotich',   'Nakuru', 'Fly-half',  'Tier 3', 5_500_000, 6.3, 96),
-  mkPlayer('Martin Njagi',      'Nakuru', 'Wing',      'Tier 4', 3_500_000, 5.1, 65),
+  mkPlayer('John Kamau',        'Nakuru', 'Lock',      'Tier 2', 7_500_000, 7.2, 120, { matchStatus: 'starting' }),
+  mkPlayer('Samuel Gachuhi',    'Nakuru', 'Number 8',  'Tier 3', 5_500_000, 6.6, 103, { matchStatus: 'bench' }),
+  mkPlayer('Peter Kiprotich',   'Nakuru', 'Fly-half',  'Tier 3', 5_500_000, 6.3, 96,  { matchStatus: 'starting' }),
+  mkPlayer('Martin Njagi',      'Nakuru', 'Wing',      'Tier 4', 3_500_000, 5.1, 65,  { matchStatus: 'starting' }),
 
   // ── Daystar Falcons (4 players) ───────────────────────────────────────────
-  mkPlayer('Robert Kimani',     'Daystar Falcons', 'Hooker',    'Tier 3', 5_500_000, 6.5, 100),
-  mkPlayer('Emmanuel Wekesa',   'Daystar Falcons', 'Prop',      'Tier 3', 5_500_000, 6.1, 93),
-  mkPlayer('Dennis Kuria',      'Daystar Falcons', 'Center',    'Tier 4', 3_500_000, 5.0, 63),
-  mkPlayer('Anthony Njoroge',   'Daystar Falcons', 'Full-back', 'Tier 4', 3_500_000, 4.8, 58),
+  mkPlayer('Robert Kimani',     'Daystar Falcons', 'Hooker',    'Tier 3', 5_500_000, 6.5, 100, { matchStatus: 'starting' }),
+  mkPlayer('Emmanuel Wekesa',   'Daystar Falcons', 'Prop',      'Tier 3', 5_500_000, 6.1, 93,  { matchStatus: 'starting' }),
+  mkPlayer('Dennis Kuria',      'Daystar Falcons', 'Center',    'Tier 4', 3_500_000, 5.0, 63,  { matchStatus: 'bench' }),
+  mkPlayer('Anthony Njoroge',   'Daystar Falcons', 'Full-back', 'Tier 4', 3_500_000, 4.8, 58,  { matchStatus: 'starting' }),
 
   // ── Impala (4 players) ────────────────────────────────────────────────────
-  mkPlayer('Kevin Mwenda',      'Impala', 'Lock',       'Tier 2', 7_500_000, 7.4, 126),
-  mkPlayer('Raymond Otieno',    'Impala', 'Flanker',    'Tier 3', 5_500_000, 6.6, 105),
-  mkPlayer('Felix Ochieng',     'Impala', 'Scrum-half', 'Tier 3', 5_500_000, 6.4, 99),
-  mkPlayer('Denis Maina',       'Impala', 'Wing',       'Tier 4', 3_500_000, 5.3, 70),
+  mkPlayer('Kevin Mwenda',      'Impala', 'Lock',       'Tier 2', 7_500_000, 7.4, 126, { matchStatus: 'starting' }),
+  mkPlayer('Raymond Otieno',    'Impala', 'Flanker',    'Tier 3', 5_500_000, 6.6, 105, { matchStatus: 'bench' }),
+  mkPlayer('Felix Ochieng',     'Impala', 'Scrum-half', 'Tier 3', 5_500_000, 6.4, 99,  { matchStatus: 'starting' }),
+  mkPlayer('Denis Maina',       'Impala', 'Wing',       'Tier 4', 3_500_000, 5.3, 70,  { matchStatus: 'starting' }),
 
   // ── Mwamba (4 players) ────────────────────────────────────────────────────
-  mkPlayer('Eric Ogweno',       'Mwamba', 'Number 8',   'Tier 2', 7_500_000, 7.6, 132),
-  mkPlayer('Victor Ombati',     'Mwamba', 'Prop',       'Tier 3', 5_500_000, 6.3, 97),
-  mkPlayer('Caleb Otieno',      'Mwamba', 'Center',     'Tier 3', 5_500_000, 6.1, 94),
-  mkPlayer('James Mutuku',      'Mwamba', 'Fly-half',   'Tier 4', 3_500_000, 5.0, 62),
+  mkPlayer('Eric Ogweno',       'Mwamba', 'Number 8',   'Tier 2', 7_500_000, 7.6, 132, { matchStatus: 'starting' }),
+  mkPlayer('Victor Ombati',     'Mwamba', 'Prop',       'Tier 3', 5_500_000, 6.3, 97,  { matchStatus: 'bench' }),
+  mkPlayer('Caleb Otieno',      'Mwamba', 'Center',     'Tier 3', 5_500_000, 6.1, 94,  { matchStatus: 'starting' }),
+  mkPlayer('James Mutuku',      'Mwamba', 'Fly-half',   'Tier 4', 3_500_000, 5.0, 62,  { matchStatus: 'starting' }),
 
   // ── JKUAT Cougars (4 players) ─────────────────────────────────────────────
-  mkPlayer('Nelson Ochieng',    'JKUAT Cougars', 'Hooker',    'Tier 3', 5_500_000, 6.4, 98),
-  mkPlayer('Timothy Korir',     'JKUAT Cougars', 'Lock',      'Tier 3', 5_500_000, 6.2, 95),
-  mkPlayer('Brian Kiprotich',   'JKUAT Cougars', 'Flanker',   'Tier 4', 3_500_000, 5.1, 66),
-  mkPlayer('Steven Njoroge',    'JKUAT Cougars', 'Full-back', 'Tier 4', 3_500_000, 4.7, 55),
+  mkPlayer('Nelson Ochieng',    'JKUAT Cougars', 'Hooker',    'Tier 3', 5_500_000, 6.4, 98, { matchStatus: 'starting' }),
+  mkPlayer('Timothy Korir',     'JKUAT Cougars', 'Lock',      'Tier 3', 5_500_000, 6.2, 95, { matchStatus: 'starting' }),
+  mkPlayer('Brian Kiprotich',   'JKUAT Cougars', 'Flanker',   'Tier 4', 3_500_000, 5.1, 66, { matchStatus: 'bench' }),
+  mkPlayer('Steven Njoroge',    'JKUAT Cougars', 'Full-back', 'Tier 4', 3_500_000, 4.7, 55, { matchStatus: 'suspended', isSuspended: true }),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────

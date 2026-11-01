@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Plus, Pencil, Trash2, X, Check, Upload, AlertTriangle, Search } from 'lucide-react';
 import { MOCK_PLAYERS, CLUB_META } from '@/lib/mockData';
 import { formatCost } from '@/lib/fantasyRules';
-import { Player, Club, Position, Tier } from '@/types/fantasy';
+import { Player, Club, Position, Tier, MatchStatus } from '@/types/fantasy';
 import { toAvif } from '@/lib/cloudinary';
 
 // Cloudinary upload widget — loaded via next-cloudinary's script
@@ -55,6 +55,7 @@ const EMPTY_FORM = {
   cost: 10_000_000, form: 5, totalPoints: 0,
   isJumper: false, isHooker: false, isFrontRow: true,
   isInjured: false, isSuspended: false, isActive: true,
+  matchStatus: 'starting' as MatchStatus,
   matchKickoffTime: new Date().toISOString(),
   headshot_url: null as string | null,
   positionGroup: 'Forward' as const,
@@ -87,6 +88,20 @@ function PlayerModal({ player, onClose, onSave }: {
       }
       // Auto-set cost when tier changes
       if (key === 'tier') next.cost = TIER_COSTS[value as Tier];
+      // Synchronize matchStatus with flags
+      if (key === 'matchStatus') {
+        const ms = value as MatchStatus;
+        next.isInjured = ms === 'injured';
+        next.isSuspended = ms === 'suspended';
+      }
+      if (key === 'isInjured') {
+        if (value) next.matchStatus = 'injured';
+        else if (next.matchStatus === 'injured') next.matchStatus = 'starting';
+      }
+      if (key === 'isSuspended') {
+        if (value) next.matchStatus = 'suspended';
+        else if (next.matchStatus === 'suspended') next.matchStatus = 'starting';
+      }
       return next;
     });
   };
@@ -160,6 +175,17 @@ function PlayerModal({ player, onClose, onSave }: {
                 onChange={e => update('matchKickoffTime', new Date(e.target.value).toISOString())} />
             </div>
 
+            {/* Match Status for Current Round */}
+            <div>
+              <label style={labelStyle}>Round 4 Match Status *</label>
+              <select className="input" value={form.matchStatus} onChange={e => update('matchStatus', e.target.value as MatchStatus)}>
+                <option value="starting">🟢 Starting XV</option>
+                <option value="bench">🔄 Bench / Substitute</option>
+                <option value="injured">🤕 Injured</option>
+                <option value="suspended">🟨 Suspended</option>
+              </select>
+            </div>
+
             {/* Status flags */}
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
               {([['isInjured', '🤕 Injured'], ['isSuspended', '🟨 Suspended'], ['isActive', '✅ Active']] as const).map(([key, label]) => (
@@ -214,7 +240,11 @@ const labelStyle: React.CSSProperties = {
 // ─────────────────────────────────────────────────────────────────────────────
 export function PlayerRegistry() {
   const [players, setPlayers] = useState<Player[]>(
-    MOCK_PLAYERS.map(p => ({ ...p, isInjured: false, isSuspended: false, isActive: true }))
+    MOCK_PLAYERS.map(p => ({
+      ...p,
+      isActive: p.isActive !== false,
+      matchStatus: p.matchStatus || (p.isInjured ? 'injured' : p.isSuspended ? 'suspended' : 'starting'),
+    }))
   );
   const [search, setSearch] = useState('');
   const [modalPlayer, setModalPlayer] = useState<typeof EMPTY_FORM | null | undefined>(undefined);
@@ -263,9 +293,20 @@ export function PlayerRegistry() {
     setConfirmDelete(null);
   };
 
-  const handleToggleFlag = (playerId: string, flag: 'isInjured' | 'isSuspended') => {
-    // In production: await supabase.from('players').update({ [flag]: !current }).eq('id', playerId)
-    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, [flag]: !p[flag as keyof Player] } : p));
+  const handleCycleStatus = (playerId: string) => {
+    const statuses: MatchStatus[] = ['starting', 'bench', 'injured', 'suspended'];
+    setPlayers(prev => prev.map(p => {
+      if (p.id !== playerId) return p;
+      const current = p.matchStatus || (p.isInjured ? 'injured' : p.isSuspended ? 'suspended' : 'starting');
+      const nextIdx = (statuses.indexOf(current) + 1) % statuses.length;
+      const nextStatus = statuses[nextIdx];
+      return {
+        ...p,
+        matchStatus: nextStatus,
+        isInjured: nextStatus === 'injured',
+        isSuspended: nextStatus === 'suspended',
+      };
+    }));
   };
 
   return (
@@ -326,7 +367,7 @@ export function PlayerRegistry() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
             <thead>
               <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-                {['Headshot', 'Name', 'Club', 'Position', 'Tier', 'Cost', 'Status', 'Actions'].map(h => (
+                {['Headshot', 'Name', 'Club', 'Position', 'Tier', 'Cost', 'Match Status', 'Actions'].map(h => (
                   <th key={h} style={{
                     padding: '12px 16px', fontSize: '10px', fontWeight: 700,
                     color: 'var(--text-muted)', textAlign: h === 'Name' ? 'left' : 'center',
@@ -339,8 +380,7 @@ export function PlayerRegistry() {
               {filtered.map((player, i) => {
                 const clubMeta = CLUB_META[player.club];
                 const isActive = (player as Player & { isActive?: boolean }).isActive !== false;
-                const isInjured = (player as Player & { isInjured?: boolean }).isInjured === true;
-                const isSuspended = (player as Player & { isSuspended?: boolean }).isSuspended === true;
+                const matchStatus = player.matchStatus || (player.isInjured ? 'injured' : player.isSuspended ? 'suspended' : 'starting');
 
                 return (
                   <tr key={player.id} style={{
@@ -397,32 +437,53 @@ export function PlayerRegistry() {
                       {formatCost(player.cost)}
                     </td>
 
-                    {/* Status toggles */}
+                    {/* Match Status */}
                     <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <button onClick={() => handleToggleFlag(player.id, 'isInjured')}
-                          title="Toggle injured" style={{
-                            padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontSize: '11px',
-                            background: isInjured ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)',
-                            color: isInjured ? '#F87171' : 'var(--text-muted)',
-                          }}>
-                          🤕
-                        </button>
-                        <button onClick={() => handleToggleFlag(player.id, 'isSuspended')}
-                          title="Toggle suspended" style={{
-                            padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontSize: '11px',
-                            background: isSuspended ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)',
-                            color: isSuspended ? '#FCD34D' : 'var(--text-muted)',
-                          }}>
-                          🟨
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCycleStatus(player.id)}
+                        title="Click to cycle status (Starting → Bench → Injured → Suspended)"
+                        style={{
+                          padding: '4px 9px', borderRadius: '6px', border: '1px solid', cursor: 'pointer',
+                          fontSize: '11px', fontWeight: 700,
+                          background: matchStatus === 'starting'
+                            ? 'rgba(16,185,129,0.15)'
+                            : matchStatus === 'bench'
+                            ? 'rgba(59,130,246,0.15)'
+                            : matchStatus === 'injured'
+                            ? 'rgba(239,68,68,0.15)'
+                            : 'rgba(245,158,11,0.15)',
+                          borderColor: matchStatus === 'starting'
+                            ? 'rgba(16,185,129,0.4)'
+                            : matchStatus === 'bench'
+                            ? 'rgba(59,130,246,0.4)'
+                            : matchStatus === 'injured'
+                            ? 'rgba(239,68,68,0.4)'
+                            : 'rgba(245,158,11,0.4)',
+                          color: matchStatus === 'starting'
+                            ? '#34D399'
+                            : matchStatus === 'bench'
+                            ? '#60A5FA'
+                            : matchStatus === 'injured'
+                            ? '#F87171'
+                            : '#FCD34D',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {matchStatus === 'starting' ? '🟢 Starting' : matchStatus === 'bench' ? '🔄 Bench' : matchStatus === 'injured' ? '🤕 Injured' : '🟨 Suspended'}
+                      </button>
                     </td>
 
                     {/* Actions */}
                     <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                        <button onClick={() => setModalPlayer({ ...EMPTY_FORM, ...player, headshot_url: player.headshot_url ?? null, positionGroup: player.positionGroup as typeof EMPTY_FORM['positionGroup'] })}
+                        <button onClick={() => setModalPlayer({
+                          ...EMPTY_FORM,
+                          ...player,
+                          matchStatus: (player.matchStatus || (player.isInjured ? 'injured' : player.isSuspended ? 'suspended' : 'starting')) as MatchStatus,
+                          headshot_url: player.headshot_url ?? null,
+                          positionGroup: player.positionGroup as typeof EMPTY_FORM['positionGroup'],
+                        })}
                           title="Edit" style={{ padding: '6px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', cursor: 'pointer', color: '#93C5FD' }}>
                           <Pencil size={12} />
                         </button>

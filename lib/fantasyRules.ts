@@ -1,4 +1,4 @@
-import { Player, ValidationResult, ScoringRules, PlayerStats } from '@/types/fantasy';
+import { Player, ValidationResult, ScoringRules, PlayerStats, Booster, BoosterType, MatchStatus } from '@/types/fantasy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Official scoring rules for Kenya Cup Fantasy Rugby Season 26/27
@@ -46,9 +46,53 @@ export const SQUAD_RULES = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Official Boosters / Chips Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+export const BOOSTERS_LIST: Booster[] = [
+  {
+    id: 'triple',
+    label: 'Triple Captain',
+    short: '3×C',
+    color: '#F59E0B',
+    bg: 'rgba(245,158,11,0.2)',
+    description: 'Your designated Captain scores 3× points instead of 2× for this round.',
+  },
+  {
+    id: 'limit',
+    label: 'Limitless',
+    short: 'LIM',
+    color: '#A855F7',
+    bg: 'rgba(168,85,247,0.2)',
+    description: 'Unlimited budget for this round — KES 100M salary cap is lifted.',
+  },
+  {
+    id: 'co',
+    label: 'Co-Captains',
+    short: 'CO-C',
+    color: '#3B82F6',
+    bg: 'rgba(59,130,246,0.2)',
+    description: 'Both Captain AND Vice-Captain score 2× double points for this round.',
+  },
+  {
+    id: 'bench',
+    label: 'Bench Boost',
+    short: 'BB',
+    color: '#10B981',
+    bg: 'rgba(16,185,129,0.2)',
+    description: 'All squad players with Bench status score full fantasy points + sub impact bonus.',
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Calculate fantasy points for a single player in a gameweek
 // ─────────────────────────────────────────────────────────────────────────────
-export function calculatePoints(stats: PlayerStats, isCaptain: boolean): number {
+export function calculatePoints(
+  stats: PlayerStats,
+  isCaptain: boolean,
+  booster?: BoosterType | null,
+  isViceCaptain?: boolean,
+  matchStatus?: MatchStatus
+): number {
   const s = SCORING_RULES;
   let pts = 0;
 
@@ -77,14 +121,30 @@ export function calculatePoints(stats: PlayerStats, isCaptain: boolean): number 
   pts += stats.yellowCards * s.yellowCard;
   pts += stats.redCards    * s.redCard;
 
-  const total = Math.max(0, pts);
-  return isCaptain ? total * 2 : total;
+  let total = Math.max(0, pts);
+
+  // Bench Boost chip bonus for players on the bench
+  if (booster === 'bench' && matchStatus === 'bench') {
+    total = Math.round(total * 1.5);
+  }
+
+  // Multiplier logic
+  if (isCaptain) {
+    if (booster === 'triple') return total * 3;
+    return total * 2;
+  }
+
+  if (isViceCaptain && booster === 'co') {
+    return total * 2;
+  }
+
+  return total;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Squad validation
 // ─────────────────────────────────────────────────────────────────────────────
-export function validateSquad(players: Player[]): ValidationResult {
+export function validateSquad(players: Player[], booster?: BoosterType | null): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -93,10 +153,11 @@ export function validateSquad(players: Player[]): ValidationResult {
     errors.push(`Squad has ${players.length} players — maximum is ${SQUAD_RULES.TOTAL_PLAYERS}.`);
   }
 
-  // Budget check (strict numeric parsing)
+  // Budget check (skipped if Limitless booster is active)
+  const isLimitless = booster === 'limit';
   const spent = players.reduce((sum, p) => sum + (Number(p.cost) || 0), 0);
   const totalBudget = Number(SQUAD_RULES.TOTAL_BUDGET);
-  if (spent > totalBudget) {
+  if (!isLimitless && spent > totalBudget) {
     errors.push(`Over budget by KES ${((spent - totalBudget) / 1_000_000).toFixed(1)}M.`);
   }
 
@@ -143,7 +204,12 @@ export function validateSquad(players: Player[]): ValidationResult {
 // Can a player be added to the current squad?
 // Strictly parse costs as Numbers and compare string IDs to avoid ghost state.
 // ─────────────────────────────────────────────────────────────────────────────
-export function canAddPlayer(player: Player, currentPlayers: Player[], budget: number): ValidationResult {
+export function canAddPlayer(
+  player: Player,
+  currentPlayers: Player[],
+  budget: number,
+  booster?: BoosterType | null
+): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -160,10 +226,11 @@ export function canAddPlayer(player: Player, currentPlayers: Player[], budget: n
     return { isValid: false, errors, warnings };
   }
 
-  // Budget check (strict numeric parsing, no string concatenation or float error)
+  // Budget check (skipped if Limitless booster is active)
+  const isLimitless = booster === 'limit';
   const playerCost = Number(player.cost) || 0;
   const availableBudget = Number(budget) || 0;
-  if (playerCost > availableBudget) {
+  if (!isLimitless && playerCost > availableBudget) {
     errors.push(`Insufficient budget. Need KES ${(playerCost / 1_000_000).toFixed(1)}M, have KES ${(availableBudget / 1_000_000).toFixed(1)}M.`);
   }
 
@@ -189,9 +256,10 @@ export function canAddPlayer(player: Player, currentPlayers: Player[], budget: n
 // ─────────────────────────────────────────────────────────────────────────────
 export function validateSquadForSave(
   players: Player[],
-  captainId: string | null
+  captainId: string | null,
+  booster?: BoosterType | null
 ): ValidationResult {
-  const baseResult = validateSquad(players);
+  const baseResult = validateSquad(players, booster);
   const errors = [...baseResult.errors];
   const warnings = [...baseResult.warnings];
 

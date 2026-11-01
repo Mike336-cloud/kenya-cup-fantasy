@@ -1,7 +1,7 @@
 'use client';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Player, SquadPlayer, ValidationResult } from '@/types/fantasy';
+import { Player, SquadPlayer, ValidationResult, BoosterType } from '@/types/fantasy';
 import { canAddPlayer, validateSquad, validateSquadForSave, SQUAD_RULES } from '@/lib/fantasyRules';
 
 const TOTAL_BUDGET = SQUAD_RULES.TOTAL_BUDGET;
@@ -10,6 +10,7 @@ interface SquadState {
   squad: SquadPlayer[];
   captainId: string | null;
   viceCaptainId: string | null;
+  activeBooster: BoosterType | null;
   selectedPosition: string | null;
   isPickingPlayer: boolean;
   activeFilter: string;
@@ -26,6 +27,7 @@ interface SquadState {
   removePlayer: (playerId: string) => void;
   setCaptain: (playerId: string) => void;
   setViceCaptain: (playerId: string) => void;
+  setActiveBooster: (booster: BoosterType | null) => void;
   setSelectedPosition: (position: string | null) => void;
   setIsPickingPlayer: (picking: boolean) => void;
   setActiveFilter: (filter: string) => void;
@@ -41,12 +43,16 @@ export const useSquadStore = create<SquadState>()(
       squad: [],
       captainId: null,
       viceCaptainId: null,
+      activeBooster: null,
       selectedPosition: null,
       isPickingPlayer: false,
       activeFilter: 'All',
 
       // ── Computed ────────────────────────────────────────────────────────────
       getRemainingBudget: () => {
+        if (get().activeBooster === 'limit') {
+          return TOTAL_BUDGET;
+        }
         const spent = get().squad.reduce((sum, sp) => sum + (Number(sp.player?.cost) || 0), 0);
         return Number(TOTAL_BUDGET) - spent;
       },
@@ -86,7 +92,7 @@ export const useSquadStore = create<SquadState>()(
           cost: Number(player.cost) || 0,
         };
 
-        const check = canAddPlayer(normalizedPlayer, currentPlayers, remaining);
+        const check = canAddPlayer(normalizedPlayer, currentPlayers, remaining, state.activeBooster);
         if (!check.isValid) return check;
 
         // Find assigned or first available slot 1-15
@@ -158,23 +164,27 @@ export const useSquadStore = create<SquadState>()(
         }));
       },
 
+      setActiveBooster: (booster: BoosterType | null) => {
+        set({ activeBooster: booster });
+      },
+
       setSelectedPosition: (position: string | null) => set({ selectedPosition: position }),
       setIsPickingPlayer: (picking: boolean) => set({ isPickingPlayer: picking }),
       setActiveFilter: (filter: string) => set({ activeFilter: filter }),
 
       validateSquad: (): ValidationResult => {
         const players = get().squad.map(sp => sp.player);
-        return validateSquad(players);
+        return validateSquad(players, get().activeBooster);
       },
 
       validateForSave: (): ValidationResult => {
         const state = get();
         const players = state.squad.map(sp => sp.player);
-        return validateSquadForSave(players, state.captainId);
+        return validateSquadForSave(players, state.captainId, state.activeBooster);
       },
 
       resetSquad: () => {
-        set({ squad: [], captainId: null, viceCaptainId: null, selectedPosition: null });
+        set({ squad: [], captainId: null, viceCaptainId: null, selectedPosition: null, activeBooster: null });
       },
 
       swapPlayers: (fromId: string, toId: string) => {
@@ -203,6 +213,7 @@ export const useSquadStore = create<SquadState>()(
         squad: state.squad,
         captainId: state.captainId,
         viceCaptainId: state.viceCaptainId,
+        activeBooster: state.activeBooster,
       }),
     }
   )
