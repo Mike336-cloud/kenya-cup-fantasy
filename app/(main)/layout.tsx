@@ -1,4 +1,5 @@
 import { Navbar } from '@/components/layout/Navbar';
+import { Footer } from '@/components/layout/Footer';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,6 +14,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <main style={{ paddingTop: '64px', minHeight: '100vh' }}>
         {children}
       </main>
+
+      <Footer />
     </AuthProvider>
   );
 }

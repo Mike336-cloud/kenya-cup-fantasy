@@ -1,3 +1,5 @@
+import Script from 'next/script';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // (admin) ISOLATED layout — completely separate from (main).
 // No Navbar, no ambient glows, no shared state.
@@ -7,7 +9,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminGroupLayout({ children }: { children: React.ReactNode }) {
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -15,8 +16,10 @@ export default function AdminGroupLayout({ children }: { children: React.ReactNo
       fontFamily: 'Inter, system-ui, sans-serif',
     }}>
       {/* Cloudinary widget script — admin only */}
-      {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript" />
+      <Script
+        src="https://upload-widget.cloudinary.com/global/all.js"
+        strategy="afterInteractive"
+      />
       {children}
     </div>
   );

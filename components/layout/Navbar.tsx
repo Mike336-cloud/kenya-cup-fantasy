@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Trophy, Users, BarChart3, Calendar, Menu, X, Zap, LogOut, LogIn } from 'lucide-react';
+import { Trophy, Users, BarChart3, Calendar, Menu, X, Zap, LogOut, LogIn, User } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useFixtureStore } from '@/lib/fixtureStore';
+import { KenyaCupLogo } from '@/components/common/BrandLogo';
 
 const GAME_NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard',  icon: BarChart3 },
@@ -11,12 +13,14 @@ const GAME_NAV_ITEMS = [
   { href: '/players',   label: 'Players',    icon: Zap },
   { href: '/leagues',   label: 'Leagues',    icon: Trophy },
   { href: '/points',    label: 'Points',     icon: Calendar },
+  { href: '/profile',   label: 'Profile',    icon: User },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isLoggedIn, isLoading, email, signOut } = useAuth();
+  const { isLoggedIn, isLoading, email, signOut, avatarUrl } = useAuth();
+  const activeRound = useFixtureStore(s => s.activeRound);
 
   // Only show game tabs when logged in
   const navItems = isLoggedIn ? GAME_NAV_ITEMS : [];
@@ -38,14 +42,7 @@ export function Navbar() {
         }}>
           {/* Logo */}
           <Link href={isLoggedIn ? '/dashboard' : '/'} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <div style={{
-              width: '36px', height: '36px',
-              background: 'linear-gradient(135deg, #A8891C, #D4AF37, #F0CF6E)',
-              borderRadius: '8px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '18px', fontWeight: '900',
-              boxShadow: '0 0 20px rgba(212,175,55,0.3)',
-            }}>🏉</div>
+            <KenyaCupLogo size={36} />
             <div>
               <div style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
@@ -100,16 +97,35 @@ export function Navbar() {
                   color: 'var(--neon)',
                   letterSpacing: '0.05em',
                 }}>
-                  ● LIVE · GW4
+                  ● LIVE · GW{activeRound}
                 </div>
-                {/* User email badge */}
-                <div style={{
-                  fontSize: '11px', color: 'var(--text-muted)',
-                  maxWidth: '120px', overflow: 'hidden',
-                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                {/* User Profile Avatar Link */}
+                <Link href="/profile" title="Manager Profile" style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  textDecoration: 'none', padding: '4px 8px', borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                 }} className="desktop-nav">
-                  {email}
-                </div>
+                  <div style={{
+                    width: '24px', height: '24px', borderRadius: '50%',
+                    overflow: 'hidden', background: 'rgba(212,175,55,0.2)',
+                    border: '1px solid var(--gold)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '12px' }}>🏉</span>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600,
+                    maxWidth: '100px', overflow: 'hidden',
+                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {email?.split('@')[0]}
+                  </div>
+                </Link>
                 {/* Sign out */}
                 <button onClick={signOut} title="Sign out" style={{
                   padding: '6px 10px', borderRadius: '6px',
@@ -179,17 +195,6 @@ export function Navbar() {
               </Link>
             );
           })}
-
-          {/* Mobile Admin Portal link */}
-          <Link href="/admin/login" onClick={() => setMobileOpen(false)} style={{
-            display: 'flex', alignItems: 'center', gap: '12px',
-            padding: '14px 16px', borderRadius: '10px', marginTop: '12px',
-            color: '#F87171', background: 'rgba(239,68,68,0.06)',
-            border: '1px solid rgba(239,68,68,0.2)',
-            textDecoration: 'none', fontSize: '14px', fontWeight: 600,
-          }}>
-            🔒 Admin Portal
-          </Link>
 
           {/* Mobile sign out */}
           <button onClick={signOut} style={{

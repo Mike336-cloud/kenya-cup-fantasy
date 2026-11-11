@@ -102,7 +102,12 @@ export function AdminDashboard() {
             Logged in as admin
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
+              try {
+                await fetch('/api/admin/logout', { method: 'POST' });
+              } catch {
+                // ignore
+              }
               if (typeof window !== 'undefined') {
                 sessionStorage.removeItem('kc_admin_session');
                 sessionStorage.removeItem('kc_admin_email');

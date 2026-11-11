@@ -1,46 +1,53 @@
 'use client';
-import { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Check, Upload, AlertTriangle, Search } from 'lucide-react';
-import { MOCK_PLAYERS, CLUB_META } from '@/lib/mockData';
+import { useState, useEffect } from 'react';
+import { Plus, Pencil, Trash2, X, Check, Upload, AlertTriangle, Search, Link as LinkIcon, RefreshCw } from 'lucide-react';
 import { formatCost } from '@/lib/fantasyRules';
-import { Player, Club, Position, Tier, MatchStatus } from '@/types/fantasy';
-import { toAvif } from '@/lib/cloudinary';
+import { Player, Club, Position, RugbyPosition, RUGBY_POSITIONS, Tier, MatchStatus, Fixture } from '@/types/fantasy';
+import { usePlayersStore } from '@/lib/playerStore';
+import { useClubsStore } from '@/lib/clubStore';
+import { useFixtureStore, MutableFixture } from '@/lib/fixtureStore';
+import { PlayerAvatar } from '@/components/common/PlayerAvatar';
+import { ClubLogo } from '@/components/common/ClubLogo';
+import { toOptimizedUrl } from '@/lib/cloudinary';
 
-// Cloudinary upload widget — loaded via next-cloudinary's script
-// Falls back to a file-input preview when NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is not set
-function CloudinaryUploadWidget({ onUpload }: { onUpload: (url: string) => void }) {
+function openCloudinaryHeadshotWidget(onSuccess: (url: string) => void) {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-
-  const handleClick = () => {
-    if (!cloudName) {
-      alert('Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local to enable uploads.');
-      return;
-    }
-    // Dynamically open the Cloudinary upload widget
-    const widget = window.cloudinary?.createUploadWidget(
-      {
-        cloudName,
-        uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'kc_players',
-        folder: 'kenya-cup/headshots',  // ← Player headshots folder
-        cropping: true,
-        croppingAspectRatio: 1,
-        maxFiles: 1,
-        resourceType: 'image',
-        sources: ['local', 'url', 'camera'],
-      },
-      (error, result) => {
-        if (!error && result?.event === 'success') {
-          // Transform URL to deliver as AVIF
-          onUpload(toAvif(result.info.secure_url) ?? result.info.secure_url);
-        }
+  if (!cloudName) {
+    alert('Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local');
+    return;
+  }
+  if (typeof window === 'undefined' || !window.cloudinary) {
+    alert('Cloudinary widget script is still loading. Please wait 2 seconds and try again.');
+    return;
+  }
+  const widget = window.cloudinary.createUploadWidget(
+    {
+      cloudName,
+      uploadPreset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? 'kc_players',
+      folder: 'kenya-cup/headshots',
+      cropping: true,
+      croppingAspectRatio: 1,
+      maxFiles: 1,
+      resourceType: 'image',
+      sources: ['local', 'url', 'camera'],
+    },
+    (err: unknown, result: { event?: string; info?: { secure_url?: string } }) => {
+      if (!err && result?.event === 'success' && result.info?.secure_url) {
+        onSuccess(toOptimizedUrl(result.info.secure_url) ?? result.info.secure_url);
       }
-    );
-    widget?.open();
-  };
+    }
+  );
+  widget?.open();
+}
 
+function CloudinaryUploadWidget({ onUpload }: { onUpload: (url: string) => void }) {
   return (
-    <button type="button" onClick={handleClick} className="btn btn-outline"
-      style={{ fontSize: '12px', padding: '8px 14px', width: '100%' }}>
+    <button
+      type="button"
+      onClick={() => openCloudinaryHeadshotWidget(onUpload)}
+      className="btn btn-outline"
+      style={{ fontSize: '12px', padding: '8px 14px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+    >
       <Upload size={13} /> Upload Headshot via Cloudinary
     </button>
   );
@@ -49,46 +56,122 @@ function CloudinaryUploadWidget({ onUpload }: { onUpload: (url: string) => void 
 // ─────────────────────────────────────────────────────────────────────────────
 // Player form modal
 // ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_ROUND_1_KICKOFF = '2026-11-21T15:00:00+03:00';
+
+function findNextFixtureForClub(
+  clubName: string,
+  fixtures: (Fixture | MutableFixture)[],
+  activeRound: number = 1
+): (Fixture | MutableFixture) | null {
+  if (!clubName || !fixtures || fixtures.length === 0) return null;
+  const target = clubName.toLowerCase().replace(/rfc|fc|rugby/gi, '').trim();
+
+  const matchesClub = (c?: string) => {
+    if (!c) return false;
+    const norm = c.toLowerCase().replace(/rfc|fc|rugby/gi, '').trim();
+    return norm.includes(target) || target.includes(norm);
+  };
+
+  // 1. Look for fixture in active round
+  const roundFixtures = fixtures.filter(f => Number(f.gameweek) === activeRound);
+  const matchInRound = roundFixtures.find(f => matchesClub(f.homeClub) || matchesClub(f.awayClub));
+  if (matchInRound) return matchInRound;
+
+  // 2. Earliest scheduled fixture
+  const upcoming = [...fixtures]
+    .filter(f => (f.status || '').toLowerCase() !== 'completed')
+    .sort((a, b) => new Date(a.kickoffTime).getTime() - new Date(b.kickoffTime).getTime());
+
+  return upcoming.find(f => matchesClub(f.homeClub) || matchesClub(f.awayClub)) || null;
+}
+
 const EMPTY_FORM = {
   name: '', club: 'Kabras Sugar' as Club,
-  position: 'Prop' as Position, tier: 'Tier 1' as Tier,
+  position: 'Loosehead Prop' as Position, tier: 'Tier 1' as Tier,
   cost: 10_000_000, form: 5, totalPoints: 0,
   isJumper: false, isHooker: false, isFrontRow: true,
   isInjured: false, isSuspended: false, isActive: true,
   matchStatus: 'starting' as MatchStatus,
-  matchKickoffTime: new Date().toISOString(),
+  matchKickoffTime: DEFAULT_ROUND_1_KICKOFF,
   headshot_url: null as string | null,
   positionGroup: 'Forward' as const,
 };
 
-const CLUBS: Club[] = ['Kabras Sugar','KCB Rugby','Menengai Oilers','Kenya Harlequin','Strathmore Leos','KU Blak Blad','Nondescripts','Nakuru','Daystar Falcons','Impala','Mwamba','JKUAT Cougars'];
-const POSITIONS: Position[] = ['Prop','Hooker','Lock','Flanker','Number 8','Scrum-half','Fly-half','Center','Wing','Full-back'];
-const TIERS: Tier[] = ['Tier 1','Tier 2','Tier 3','Tier 4'];
+const CLUBS: Club[] = [
+  'Kabras Sugar', 'KCB Rugby', 'Menengai Oilers', 'Kenya Harlequin',
+  'Strathmore Leos', 'KU Blak Blad', 'Nondescripts', 'Nakuru',
+  'Daystar Falcons', 'Impala', 'Mwamba', 'JKUAT Cougars',
+];
+const POSITIONS: RugbyPosition[] = RUGBY_POSITIONS;
+const TIERS: Tier[] = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
 const TIER_COSTS: Record<Tier, number> = { 'Tier 1': 10_000_000, 'Tier 2': 7_500_000, 'Tier 3': 5_500_000, 'Tier 4': 3_500_000 };
-const FORWARD_POSITIONS: Position[] = ['Prop','Hooker','Lock','Flanker','Number 8'];
+const FORWARD_POSITIONS: Position[] = [
+  'Loosehead Prop',
+  'Hooker',
+  'Tighthead Prop',
+  'Lock',
+  'Blindside Flanker',
+  'Openside Flanker',
+  'Number 8',
+  'Front Row',
+  'Back Row',
+  'Prop',
+  'Flanker',
+];
 
 function PlayerModal({ player, onClose, onSave }: {
   player: typeof EMPTY_FORM | null;
   onClose: () => void;
   onSave: (data: typeof EMPTY_FORM) => Promise<void>;
 }) {
-  const [form, setForm] = useState(player ?? EMPTY_FORM);
+  const { fixtures, activeRound, fetchFixtures } = useFixtureStore();
+
+  useEffect(() => {
+    fetchFixtures();
+  }, [fetchFixtures]);
+
+  const [form, setForm] = useState(() => {
+    if (player) return player;
+    return {
+      ...EMPTY_FORM,
+      matchKickoffTime: DEFAULT_ROUND_1_KICKOFF,
+    };
+  });
   const [saving, setSaving] = useState(false);
+
+  const matchedFixture = findNextFixtureForClub(form.club, fixtures, activeRound);
+
+  // Auto-sync for a new player once fixtures load
+  useEffect(() => {
+    if (!player && fixtures.length > 0) {
+      const fx = findNextFixtureForClub(form.club, fixtures, activeRound);
+      if (fx?.kickoffTime && form.matchKickoffTime === DEFAULT_ROUND_1_KICKOFF) {
+        setForm(prev => ({ ...prev, matchKickoffTime: fx.kickoffTime }));
+      }
+    }
+  }, [player, fixtures, form.club, activeRound, form.matchKickoffTime]);
+
+  const handleClubChange = (newClub: Club) => {
+    const fx = findNextFixtureForClub(newClub, fixtures, activeRound);
+    const newKickoff = fx?.kickoffTime || DEFAULT_ROUND_1_KICKOFF;
+    setForm(prev => ({
+      ...prev,
+      club: newClub,
+      matchKickoffTime: newKickoff,
+    }));
+  };
 
   const update = <K extends keyof typeof EMPTY_FORM>(key: K, value: typeof EMPTY_FORM[K]) => {
     setForm(prev => {
       const next = { ...prev, [key]: value };
-      // Auto-derive flags when position changes
       if (key === 'position') {
         const pos = value as Position;
-        next.isFrontRow = pos === 'Prop' || pos === 'Hooker';
+        next.isFrontRow = pos === 'Loosehead Prop' || pos === 'Tighthead Prop' || pos === 'Hooker' || pos === 'Front Row' || (pos as string) === 'Prop';
         next.isHooker   = pos === 'Hooker';
-        next.isJumper   = pos === 'Lock';
+        next.isJumper   = pos === 'Lock' || pos === 'Blindside Flanker' || pos === 'Openside Flanker' || pos === 'Number 8' || pos === 'Back Row' || (pos as string) === 'Flanker';
         next.positionGroup = (FORWARD_POSITIONS.includes(pos) ? 'Forward' : 'Back') as 'Forward';
       }
-      // Auto-set cost when tier changes
       if (key === 'tier') next.cost = TIER_COSTS[value as Tier];
-      // Synchronize matchStatus with flags
       if (key === 'matchStatus') {
         const ms = value as MatchStatus;
         next.isInjured = ms === 'injured';
@@ -109,8 +192,11 @@ function PlayerModal({ player, onClose, onSave }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await onSave(form);
-    setSaving(false);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -146,7 +232,7 @@ function PlayerModal({ player, onClose, onSave }: {
             {/* Club */}
             <div>
               <label style={labelStyle}>Club *</label>
-              <select className="input" value={form.club} onChange={e => update('club', e.target.value as Club)}>
+              <select className="input" value={form.club} onChange={e => handleClubChange(e.target.value as Club)}>
                 {CLUBS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -155,7 +241,33 @@ function PlayerModal({ player, onClose, onSave }: {
             <div>
               <label style={labelStyle}>Position *</label>
               <select className="input" value={form.position} onChange={e => update('position', e.target.value as Position)}>
-                {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                <optgroup label="The Tight Five">
+                  <option value="Loosehead Prop">Loosehead Prop</option>
+                  <option value="Hooker">Hooker</option>
+                  <option value="Tighthead Prop">Tighthead Prop</option>
+                  <option value="Lock">Lock</option>
+                </optgroup>
+                <optgroup label="The Back Row">
+                  <option value="Blindside Flanker">Blindside Flanker</option>
+                  <option value="Openside Flanker">Openside Flanker</option>
+                  <option value="Number 8">Number 8</option>
+                </optgroup>
+                <optgroup label="The Halfbacks">
+                  <option value="Scrum-half">Scrum-half</option>
+                  <option value="Fly-half">Fly-half</option>
+                </optgroup>
+                <optgroup label="The Midfield & Outside Backs">
+                  <option value="Inside Center">Inside Center</option>
+                  <option value="Outside Center">Outside Center</option>
+                  <option value="Left Wing">Left Wing</option>
+                  <option value="Right Wing">Right Wing</option>
+                  <option value="Fullback">Fullback</option>
+                </optgroup>
+                <optgroup label="Utility & Broad Roster Designations">
+                  <option value="Utility Back">Utility Back</option>
+                  <option value="Front Row">Front Row</option>
+                  <option value="Back Row">Back Row</option>
+                </optgroup>
               </select>
             </div>
 
@@ -169,15 +281,48 @@ function PlayerModal({ player, onClose, onSave }: {
 
             {/* Kickoff time */}
             <div>
-              <label style={labelStyle}>Match Kickoff Time *</label>
-              <input className="input" type="datetime-local"
-                value={form.matchKickoffTime.slice(0, 16)}
-                onChange={e => update('matchKickoffTime', new Date(e.target.value).toISOString())} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Match Kickoff Time</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fx = findNextFixtureForClub(form.club, fixtures, activeRound);
+                    update('matchKickoffTime', fx?.kickoffTime || DEFAULT_ROUND_1_KICKOFF);
+                  }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#10B981', fontSize: '11px', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', gap: '3px', padding: 0,
+                  }}
+                  title="Sync with Club's scheduled fixture"
+                >
+                  <RefreshCw size={11} /> Auto-Sync
+                </button>
+              </div>
+              <input
+                className="input"
+                type="datetime-local"
+                value={form.matchKickoffTime ? form.matchKickoffTime.slice(0, 16) : ''}
+                onChange={e => update('matchKickoffTime', e.target.value ? new Date(e.target.value).toISOString() : DEFAULT_ROUND_1_KICKOFF)}
+                style={{
+                  background: 'rgba(16, 185, 129, 0.05)',
+                  borderColor: 'rgba(16, 185, 129, 0.35)',
+                }}
+              />
+              {matchedFixture ? (
+                <div style={{ fontSize: '11px', color: '#34D399', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>⚡ Auto-synced from Round {matchedFixture.gameweek}: <strong>{matchedFixture.homeClub} vs {matchedFixture.awayClub}</strong></span>
+                </div>
+              ) : (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Round 1 kickoff: Nov 21, 2026 15:00 EAT
+                </div>
+              )}
             </div>
 
             {/* Match Status for Current Round */}
-            <div>
-              <label style={labelStyle}>Round 4 Match Status *</label>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={labelStyle}>Round Match Status *</label>
               <select className="input" value={form.matchStatus} onChange={e => update('matchStatus', e.target.value as MatchStatus)}>
                 <option value="starting">🟢 Starting XV</option>
                 <option value="bench">🔄 Bench / Substitute</option>
@@ -197,30 +342,50 @@ function PlayerModal({ player, onClose, onSave }: {
               ))}
             </div>
 
-            {/* Cloudinary upload */}
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={labelStyle}>Player Headshot (Cloudinary)</label>
-              {form.headshot_url && (
-                <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Headshot section */}
+            <div style={{ gridColumn: '1 / -1', background: 'var(--bg-surface)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border)' }}>
+              <label style={{ ...labelStyle, marginBottom: '10px' }}>Player Headshot (Cloudinary / kenya-cup/headshots)</label>
+              {form.headshot_url ? (
+                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '14px', padding: '10px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '8px' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={form.headshot_url} alt="Headshot preview" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)' }} />
-                  <span style={{ fontSize: '12px', color: 'var(--success)' }}>✓ Headshot uploaded</span>
-                  <button type="button" onClick={() => update('headshot_url', null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', fontSize: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#34D399' }}>✓ Headshot attached</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                      {form.headshot_url}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => update('headshot_url', null)} className="btn btn-outline" style={{ color: 'var(--danger)', fontSize: '11px', padding: '5px 10px' }}>
                     Remove
                   </button>
                 </div>
+              ) : (
+                <div style={{ marginBottom: '10px', padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  No headshot attached yet. Upload via Cloudinary or paste a direct image URL.
+                </div>
               )}
-              <CloudinaryUploadWidget onUpload={url => update('headshot_url', url)} />
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Requires <code>NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code> in .env.local
-              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <CloudinaryUploadWidget onUpload={url => update('headshot_url', url)} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <LinkIcon size={12} /> Direct URL:
+                  </span>
+                  <input
+                    className="input"
+                    style={{ fontSize: '12px', padding: '6px 10px' }}
+                    value={form.headshot_url ?? ''}
+                    onChange={e => update('headshot_url', e.target.value.trim() || null)}
+                    placeholder="https://res.cloudinary.com/..."
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={onClose} className="btn btn-outline">Cancel</button>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+            <button type="button" onClick={onClose} className="btn btn-outline" disabled={saving}>Cancel</button>
             <button type="submit" className="btn btn-gold" disabled={saving}>
-              {saving ? 'Saving…' : <><Check size={14} /> {player ? 'Update Player' : 'Create Player'}</>}
+              {saving ? <><RefreshCw size={14} className="spin" /> Saving…</> : <><Check size={14} /> {player ? 'Update Player & Save' : 'Create Player & Save'}</>}
             </button>
           </div>
         </form>
@@ -239,17 +404,16 @@ const labelStyle: React.CSSProperties = {
 // Player Registry (View A)
 // ─────────────────────────────────────────────────────────────────────────────
 export function PlayerRegistry() {
-  const [players, setPlayers] = useState<Player[]>(
-    MOCK_PLAYERS.map(p => ({
-      ...p,
-      isActive: p.isActive !== false,
-      matchStatus: p.matchStatus || (p.isInjured ? 'injured' : p.isSuspended ? 'suspended' : 'starting'),
-    }))
-  );
+  const { players, updatePlayer, addPlayer, softDeletePlayer, fetchPlayers, isLoading } = usePlayersStore();
+  const { getClubMeta } = useClubsStore();
   const [search, setSearch] = useState('');
-  const [modalPlayer, setModalPlayer] = useState<typeof EMPTY_FORM | null | undefined>(undefined);
+  const [modalPlayer, setModalPlayer] = useState<(typeof EMPTY_FORM & { id?: string }) | null | undefined>(undefined);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPlayers();
+  }, [fetchPlayers]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -264,49 +428,51 @@ export function PlayerRegistry() {
 
   const handleSave = async (form: typeof EMPTY_FORM) => {
     try {
-      if (modalPlayer) {
-        // UPDATE — in production: await supabase.from('players').update({...}).eq('id', existingId)
-        setPlayers(prev => prev.map(p =>
-          p.name === modalPlayer.name ? { ...p, ...form } : p
-        ));
+      if (modalPlayer && modalPlayer.id) {
+        await updatePlayer(modalPlayer.id, form);
         showToast(`✓ ${form.name} updated successfully`);
+        setModalPlayer(undefined);
       } else {
-        // CREATE — in production: await supabase.from('players').insert({...})
-        const newPlayer: Player = {
-          ...form, id: `p_${Date.now()}`,
-          stats: undefined,
-        };
-        setPlayers(prev => [newPlayer, ...prev]);
+        await addPlayer(form);
         showToast(`✓ ${form.name} created successfully`);
+        setModalPlayer(undefined);
       }
-      setModalPlayer(undefined);
-    } catch {
-      showToast('Failed to save player', 'error');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save player';
+      showToast(`Error: ${msg}`, 'error');
     }
   };
 
-  const handleSoftDelete = (player: Player) => {
-    // Soft-delete: set isActive = false
-    // In production: await supabase.from('players').update({ isActive: false }).eq('id', player.id)
-    setPlayers(prev => prev.map(p => p.id === player.id ? { ...p, isActive: false } : p));
-    showToast(`${player.name} deactivated (soft-deleted)`);
-    setConfirmDelete(null);
+  const handleSoftDelete = async (player: Player) => {
+    try {
+      await softDeletePlayer(player.id);
+      showToast(`${player.name} deactivated`);
+      setConfirmDelete(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to deactivate player';
+      showToast(`Error: ${msg}`, 'error');
+    }
   };
 
-  const handleCycleStatus = (playerId: string) => {
+  const handleCycleStatus = async (playerId: string) => {
     const statuses: MatchStatus[] = ['starting', 'bench', 'injured', 'suspended'];
-    setPlayers(prev => prev.map(p => {
-      if (p.id !== playerId) return p;
-      const current = p.matchStatus || (p.isInjured ? 'injured' : p.isSuspended ? 'suspended' : 'starting');
-      const nextIdx = (statuses.indexOf(current) + 1) % statuses.length;
-      const nextStatus = statuses[nextIdx];
-      return {
-        ...p,
+    const p = players.find(item => item.id === playerId);
+    if (!p) return;
+    const current = p.matchStatus || (p.isInjured ? 'injured' : p.isSuspended ? 'suspended' : 'starting');
+    const nextIdx = (statuses.indexOf(current) + 1) % statuses.length;
+    const nextStatus = statuses[nextIdx];
+
+    try {
+      await updatePlayer(playerId, {
         matchStatus: nextStatus,
         isInjured: nextStatus === 'injured',
         isSuspended: nextStatus === 'suspended',
-      };
-    }));
+      });
+      showToast(`${p.name} status: ${nextStatus}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update status';
+      showToast(`Error: ${msg}`, 'error');
+    }
   };
 
   return (
@@ -336,7 +502,7 @@ export function PlayerRegistry() {
                 <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Soft-Delete Player</h3>
               </div>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>{p.name}</strong> will be marked inactive. Their historical stats are preserved. This can be reversed.
+                <strong style={{ color: 'var(--text-primary)' }}>{p.name}</strong> will be marked inactive. Their historical stats are preserved.
               </p>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setConfirmDelete(null)} className="btn btn-outline">Cancel</button>
@@ -353,7 +519,16 @@ export function PlayerRegistry() {
           <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input className="input" placeholder="Search players…" value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: '36px' }} />
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={() => fetchPlayers(true)}
+            className="btn btn-outline"
+            style={{ fontSize: '12px', padding: '6px 12px' }}
+            title="Sync players with database"
+            disabled={isLoading}
+          >
+            <RefreshCw size={13} className={isLoading ? 'spin' : ''} /> {isLoading ? 'Syncing…' : 'Sync DB'}
+          </button>
           <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{filtered.length} players</span>
           <button onClick={() => setModalPlayer(null)} className="btn btn-gold" style={{ fontSize: '13px' }}>
             <Plus size={14} /> Add Player
@@ -378,7 +553,7 @@ export function PlayerRegistry() {
             </thead>
             <tbody>
               {filtered.map((player, i) => {
-                const clubMeta = CLUB_META[player.club];
+                const clubMeta = getClubMeta(player.club);
                 const isActive = (player as Player & { isActive?: boolean }).isActive !== false;
                 const matchStatus = player.matchStatus || (player.isInjured ? 'injured' : player.isSuspended ? 'suspended' : 'starting');
 
@@ -393,31 +568,36 @@ export function PlayerRegistry() {
                   >
                     {/* Headshot */}
                     <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                      {player.headshot_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={player.headshot_url} alt={player.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${clubMeta.color}` }} />
-                      ) : (
-                        <div style={{
-                          width: '36px', height: '36px', borderRadius: '50%', margin: '0 auto',
-                          background: clubMeta.bg, border: `2px solid ${clubMeta.color}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '11px', fontWeight: 800, color: clubMeta.color,
-                        }}>
-                          {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </div>
-                      )}
+                      <PlayerAvatar
+                        name={player.name}
+                        headshotUrl={player.headshot_url}
+                        clubName={player.club}
+                        size={38}
+                        style={{ margin: '0 auto' }}
+                      />
                     </td>
 
                     {/* Name */}
                     <td style={{ padding: '10px 16px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{player.name}</div>
+                      {player.headshot_url && (
+                        <div style={{ fontSize: '10px', color: '#34D399', marginTop: '2px' }}>✓ Headshot active</div>
+                      )}
                     </td>
 
-                    {/* Club */}
+                    {/* Club with logo */}
                     <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, color: clubMeta.color, background: clubMeta.bg, padding: '2px 6px', borderRadius: '4px' }}>
-                        {clubMeta.abbr}
-                      </span>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <ClubLogo
+                          clubName={player.club}
+                          logoUrl={player.clubs?.logo_url || player.club_logo_url}
+                          size={22}
+                          showBorder={false}
+                        />
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: clubMeta.color, background: clubMeta.bg, padding: '2px 6px', borderRadius: '4px' }}>
+                          {clubMeta.abbr}
+                        </span>
+                      </div>
                     </td>
 
                     {/* Position */}
@@ -512,9 +692,8 @@ export function PlayerRegistry() {
         />
       )}
 
-      {/* Supabase note */}
       <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px', fontSize: '12px', color: '#93C5FD' }}>
-        💡 <strong>Production:</strong> Replace local state mutations with <code>supabase.from(&apos;players&apos;).insert/update/select</code> calls from <code>lib/supabase.ts</code>
+        💡 <strong>Headshots & Status:</strong> Player headshots and statuses are stored in Cloudinary and synchronized with Supabase. Updates immediately reflect in the fantasy squad builder and player cards.
       </div>
     </div>
   );
