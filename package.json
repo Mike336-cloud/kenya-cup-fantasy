@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "seed:players": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/seedPlayers.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

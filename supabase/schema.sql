@@ -17,8 +17,12 @@ CREATE TABLE IF NOT EXISTS players (
     'Daystar Falcons', 'Impala', 'Mwamba', 'JKUAT Cougars'
   )),
   position           TEXT NOT NULL CHECK (position IN (
-    'Prop', 'Hooker', 'Lock', 'Flanker', 'Number 8',
-    'Scrum-half', 'Fly-half', 'Center', 'Wing', 'Full-back'
+    'Loosehead Prop', 'Hooker', 'Tighthead Prop', 'Lock',
+    'Blindside Flanker', 'Openside Flanker', 'Number 8',
+    'Scrum-half', 'Fly-half',
+    'Inside Center', 'Outside Center', 'Left Wing', 'Right Wing', 'Fullback',
+    'Utility Back', 'Front Row', 'Back Row',
+    'Prop', 'Flanker', 'Center', 'Wing', 'Full-back'
   )),
   "positionGroup"    TEXT NOT NULL CHECK ("positionGroup" IN ('Forward', 'Back')),
   "isJumper"         BOOLEAN NOT NULL DEFAULT false,
@@ -164,8 +168,19 @@ ALTER TABLE league_members  ENABLE ROW LEVEL SECURITY;
 
 -- Public read access on players, fixtures
 CREATE POLICY "Players are publicly readable" ON players FOR SELECT USING (true);
+CREATE POLICY "Admins manage players" ON players FOR ALL
+  USING (EXISTS (SELECT 1 FROM fantasy_users WHERE id = auth.uid() AND is_admin = true))
+  WITH CHECK (EXISTS (SELECT 1 FROM fantasy_users WHERE id = auth.uid() AND is_admin = true));
+
 CREATE POLICY "Fixtures are publicly readable" ON fixtures FOR SELECT USING (true);
+CREATE POLICY "Admins manage fixtures" ON fixtures FOR ALL
+  USING (EXISTS (SELECT 1 FROM fantasy_users WHERE id = auth.uid() AND is_admin = true))
+  WITH CHECK (EXISTS (SELECT 1 FROM fantasy_users WHERE id = auth.uid() AND is_admin = true));
+
 CREATE POLICY "Stats are publicly readable" ON player_stats FOR SELECT USING (true);
+CREATE POLICY "Admins manage player_stats" ON player_stats FOR ALL
+  USING (EXISTS (SELECT 1 FROM fantasy_users WHERE id = auth.uid() AND is_admin = true))
+  WITH CHECK (EXISTS (SELECT 1 FROM fantasy_users WHERE id = auth.uid() AND is_admin = true));
 
 -- Users can only read/update their own profile
 CREATE POLICY "Users read own profile" ON fantasy_users FOR SELECT USING (auth.uid() = id);
@@ -201,11 +216,17 @@ ALTER TABLE players
   ADD COLUMN IF NOT EXISTS "isInjured"     BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS "isSuspended"   BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS "isActive"      BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS "isPostponed"   BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS "isPostponed"   BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS previous_cost   INTEGER,
+  ADD COLUMN IF NOT EXISTS form_rating     FLOAT DEFAULT 5.0,
+  ADD COLUMN IF NOT EXISTS is_front_row    BOOLEAN,
+  ADD COLUMN IF NOT EXISTS is_hooker       BOOLEAN,
+  ADD COLUMN IF NOT EXISTS is_jumper       BOOLEAN;
 
--- Add is_admin flag to fantasy_users
+-- Add is_admin and avatar_url to fantasy_users
 ALTER TABLE fantasy_users
-  ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS is_admin   BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 -- ── match_events (Tisini stat override table) ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS match_events (
@@ -309,4 +330,66 @@ ALTER TABLE fantasy_users
   ADD CONSTRAINT chk_username_format
   CHECK (username ~ '^[a-z0-9_]{3,20}$');
 
-CREATE INDEX IF NOT EXISTS idx_users_username ON fantasy_users(username);
+-- ─────────────────────────────────────────────────────────────────────────────
+-- UNIFIED STATS MIGRATION (Preserve Legacy Stats + Overhauled Scoring Matrix)
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE match_events
+  ADD COLUMN IF NOT EXISTS "isStartingPlayer"          BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "isSubstitute"              BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "teamWon"                   BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "teamDraw"                  BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "penaltyKicksMissed"        INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "forwardsScrumsWon100"      BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "forwardsScrumsWonOpponent"  INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "forwardsLineoutsWon90"     BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "forwardsLineoutsStolen20"  BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "metresCarried"             INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "cleanBreaks"               INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "defendersBeaten"           INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "turnoversWon"              INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "lineoutsStolenIndividual"  INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "missedTackles"             INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "handlingErrors"            INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "penaltiesConceded"         INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "kicks50_22"                INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "playerOfTheMatch"          BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "scrumsWon"                 INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "scrumsLost"                INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE player_stats
+  ADD COLUMN IF NOT EXISTS "isStartingPlayer"          BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "isSubstitute"              BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "teamWon"                   BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "teamDraw"                  BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "penaltyKicksMissed"        INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "forwardsScrumsWon100"      BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "forwardsScrumsWonOpponent"  INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "forwardsLineoutsWon90"     BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "forwardsLineoutsStolen20"  BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "metresCarried"             INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "cleanBreaks"               INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "defendersBeaten"           INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "turnoversWon"              INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "lineoutsStolenIndividual"  INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "missedTackles"             INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "handlingErrors"            INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "penaltiesConceded"         INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "kicks50_22"                INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "playerOfTheMatch"          BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "scrumsWon"                 INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "scrumsLost"                INTEGER NOT NULL DEFAULT 0;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- GRANULAR RUGBY POSITIONS CHECK CONSTRAINT MIGRATION
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE players DROP CONSTRAINT IF EXISTS players_position_check;
+ALTER TABLE players ADD CONSTRAINT players_position_check CHECK (position IN (
+  'Loosehead Prop', 'Hooker', 'Tighthead Prop', 'Lock',
+  'Blindside Flanker', 'Openside Flanker', 'Number 8',
+  'Scrum-half', 'Fly-half',
+  'Inside Center', 'Outside Center', 'Left Wing', 'Right Wing', 'Fullback',
+  'Utility Back', 'Front Row', 'Back Row',
+  'Prop', 'Flanker', 'Center', 'Wing', 'Full-back'
+));
+
+

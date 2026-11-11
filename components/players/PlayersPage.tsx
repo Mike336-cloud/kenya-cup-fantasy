@@ -1,12 +1,16 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X } from 'lucide-react';
-import { MOCK_PLAYERS, CLUB_META, POSITION_ABBR } from '@/lib/mockData';
-import { formatCost } from '@/lib/fantasyRules';
+import { POSITION_ABBR } from '@/lib/mockData';
+import { formatCost, getPositionCategory } from '@/lib/fantasyRules';
 import { useSquadStore } from '@/store/squadStore';
-import { Player, Position, Club, Tier } from '@/types/fantasy';
+import { usePlayersStore } from '@/lib/playerStore';
+import { useClubsStore } from '@/lib/clubStore';
+import { Player, Club, Tier } from '@/types/fantasy';
+import { PlayerAvatar } from '@/components/common/PlayerAvatar';
+import { ClubLogo } from '@/components/common/ClubLogo';
 
-const POSITIONS: Position[] = ['Prop', 'Hooker', 'Lock', 'Flanker', 'Number 8', 'Scrum-half', 'Fly-half', 'Center', 'Wing', 'Full-back'];
+const POSITION_PILLS = ['All', 'Prop', 'Hooker', 'Lock', 'Flanker', 'Number 8', 'Scrum-half', 'Fly-half', 'Center', 'Wing', 'Fullback'];
 const TIERS: Tier[] = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
 const CLUBS: Club[] = ['Kabras Sugar', 'KCB Rugby', 'Menengai Oilers', 'Kenya Harlequin', 'Strathmore Leos', 'KU Blak Blad', 'Nondescripts', 'Nakuru', 'Daystar Falcons', 'Impala', 'Mwamba', 'JKUAT Cougars'];
 const SORT_OPTIONS = [
@@ -39,7 +43,8 @@ function PlayerCard({ player, inSquad, onAdd, onRemove }: {
   onAdd: () => void;
   onRemove: () => void;
 }) {
-  const clubMeta = CLUB_META[player.club];
+  const getClubMeta = useClubsStore(s => s.getClubMeta);
+  const clubMeta = getClubMeta(player.club);
   const tierColors: Record<Tier, string> = {
     'Tier 1': 'badge-gold',
     'Tier 2': 'badge-blue',
@@ -59,25 +64,31 @@ function PlayerCard({ player, inSquad, onAdd, onRemove }: {
 
       <div style={{ padding: '14px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
-          {/* Avatar */}
-          <div style={{
-            width: '44px', height: '44px', borderRadius: '50%',
-            background: clubMeta.bg, border: `2px solid ${clubMeta.color}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '13px', fontWeight: 800, color: clubMeta.color,
-            flexShrink: 0,
-          }}>
-            {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-          </div>
+          {/* Avatar with headshot support */}
+          <PlayerAvatar
+            name={player.name}
+            headshotUrl={player.headshot_url}
+            clubName={player.club}
+            size={46}
+          />
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {player.name}
             </div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '10px', fontWeight: 700, color: clubMeta.color, background: clubMeta.bg, padding: '2px 5px', borderRadius: '4px' }}>
-                {clubMeta.abbr}
-              </span>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Club logo + abbreviation */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <ClubLogo
+                  clubName={player.club}
+                  logoUrl={player.clubs?.logo_url || player.club_logo_url}
+                  size={18}
+                  showBorder={false}
+                />
+                <span style={{ fontSize: '10px', fontWeight: 700, color: clubMeta.color, background: clubMeta.bg, padding: '2px 5px', borderRadius: '4px' }}>
+                  {clubMeta.abbr}
+                </span>
+              </div>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'var(--bg-surface)', padding: '2px 5px', borderRadius: '4px', fontWeight: 600 }}>
                 {player.position}
               </span>
@@ -135,6 +146,8 @@ function PlayerCard({ player, inSquad, onAdd, onRemove }: {
 
 export function PlayersPage() {
   const { squad, addPlayer, removePlayer, getRemainingBudget } = useSquadStore();
+  const { players, fetchPlayers } = usePlayersStore();
+  const { fetchClubs } = useClubsStore();
   const [search, setSearch] = useState('');
   const [posFilter, setPosFilter] = useState<string>('All');
   const [clubFilter, setClubFilter] = useState<string>('All');
@@ -142,13 +155,20 @@ export function PlayersPage() {
   const [sortBy, setSortBy] = useState('totalPoints');
   const [notification, setNotification] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetchPlayers();
+    fetchClubs();
+  }, [fetchPlayers, fetchClubs]);
+
   const squadIds = squad.map(sp => sp.playerId);
   const remaining = getRemainingBudget();
 
   const filtered = useMemo(() => {
-    let list = [...MOCK_PLAYERS];
+    let list = [...players];
     if (search) list = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.club.toLowerCase().includes(search.toLowerCase()));
-    if (posFilter !== 'All') list = list.filter(p => p.position === posFilter);
+    if (posFilter !== 'All') {
+      list = list.filter(p => p.position === posFilter || getPositionCategory(p.position) === posFilter);
+    }
     if (clubFilter !== 'All') list = list.filter(p => p.club === clubFilter);
     if (tierFilter !== 'All') list = list.filter(p => p.tier === tierFilter);
 
@@ -160,7 +180,7 @@ export function PlayersPage() {
       return 0;
     });
     return list;
-  }, [search, posFilter, clubFilter, tierFilter, sortBy]);
+  }, [players, search, posFilter, clubFilter, tierFilter, sortBy]);
 
   const handleAdd = (player: Player) => {
     const result = addPlayer(player);
@@ -213,7 +233,33 @@ export function PlayersPage() {
         {/* Position filter */}
         <select className="input" value={posFilter} onChange={e => setPosFilter(e.target.value)} style={{ width: 'auto' }}>
           <option value="All">All Positions</option>
-          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+          <optgroup label="The Tight Five">
+            <option value="Loosehead Prop">Loosehead Prop</option>
+            <option value="Hooker">Hooker</option>
+            <option value="Tighthead Prop">Tighthead Prop</option>
+            <option value="Lock">Lock</option>
+          </optgroup>
+          <optgroup label="The Back Row">
+            <option value="Blindside Flanker">Blindside Flanker</option>
+            <option value="Openside Flanker">Openside Flanker</option>
+            <option value="Number 8">Number 8</option>
+          </optgroup>
+          <optgroup label="The Halfbacks">
+            <option value="Scrum-half">Scrum-half</option>
+            <option value="Fly-half">Fly-half</option>
+          </optgroup>
+          <optgroup label="The Midfield & Outside Backs">
+            <option value="Inside Center">Inside Center</option>
+            <option value="Outside Center">Outside Center</option>
+            <option value="Left Wing">Left Wing</option>
+            <option value="Right Wing">Right Wing</option>
+            <option value="Fullback">Fullback</option>
+          </optgroup>
+          <optgroup label="Utility & Broad">
+            <option value="Utility Back">Utility Back</option>
+            <option value="Front Row">Front Row</option>
+            <option value="Back Row">Back Row</option>
+          </optgroup>
         </select>
 
         {/* Club filter */}
@@ -236,7 +282,7 @@ export function PlayersPage() {
 
       {/* Position quick-filter pills */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '20px' }}>
-        {['All', ...POSITIONS].map(p => (
+        {POSITION_PILLS.map(p => (
           <button key={p}
             onClick={() => setPosFilter(p)}
             style={{

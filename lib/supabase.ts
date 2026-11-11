@@ -1,24 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Supabase Client – production-ready stub
-// Replace NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
-// with your actual values from the Supabase dashboard.
-//
-// Tables expected (see /types/fantasy.ts → Database):
-//   players · squads · squad_players · fixtures · leagues · player_stats
+// Supabase Client – Scalable & Edge-Ready with Connection Pooling
 // ─────────────────────────────────────────────────────────────────────────────
+import { cache } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '@/types/fantasy';
 
-const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? '';
+// Scalability: Support connection-pooled Supavisor / PgBouncer endpoints
+// in high-concurrency production (e.g. 30 mins before kickoff)
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_POOLED_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  '';
 const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 /** True once env vars are configured */
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnon);
 
 /**
- * Typed Supabase client singleton.
- * Returns null when NEXT_PUBLIC_SUPABASE_URL / ANON_KEY are not yet set,
- * so the app runs in mock-data mode without crashing.
+ * Typed Supabase client singleton with connection pooling support.
  */
 export const supabase = isSupabaseConfigured
   ? createClient<Database>(supabaseUrl, supabaseAnon, {
@@ -39,18 +38,52 @@ export function getSupabase(): NonNullable<typeof supabase> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Typed helper queries (swap mock data for these once Supabase is wired up)
+// React cache() memoized queries to prevent duplicate reads during high traffic
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Fetch all players for a given season */
-export async function fetchPlayers() {
+/** Memoized fetch all players */
+export const getCachedPlayers = cache(async () => {
   const { data, error } = await getSupabase()
     .from('players')
-    .select('*')
+    .select('*, clubs(id, name, logo_url, abbreviation, primary_color)')
     .order('totalPoints', { ascending: false });
 
   if (error) throw error;
   return data;
+});
+
+/** Memoized fetch all 12 active Kenya Cup clubs */
+export const getCachedClubs = cache(async () => {
+  const { data, error } = await getSupabase()
+    .from('clubs')
+    .select('*')
+    .eq('is_active_in_kenya_cup', true)
+    .order('name');
+
+  if (error) throw error;
+  return data;
+});
+
+/** Memoized fetch fixtures for a given gameweek */
+export const getCachedFixtures = cache(async (gameweek: number) => {
+  const { data, error } = await getSupabase()
+    .from('fixtures')
+    .select('*')
+    .eq('gameweek', gameweek)
+    .order('kickoffTime');
+
+  if (error) throw error;
+  return data;
+});
+
+/** Fetch all players for a given season (compatible backward alias) */
+export async function fetchPlayers() {
+  return getCachedPlayers();
+}
+
+/** Fetch all fixtures for a given gameweek */
+export async function fetchFixtures(gameweek: number) {
+  return getCachedFixtures(gameweek);
 }
 
 /** Fetch the current user's squad for a given gameweek */
@@ -66,23 +99,11 @@ export async function fetchSquad(userId: string, gameweek: number) {
   return data;
 }
 
-/** Fetch all fixtures for a given gameweek */
-export async function fetchFixtures(gameweek: number) {
-  const { data, error } = await getSupabase()
-    .from('fixtures')
-    .select('*')
-    .eq('gameweek', gameweek)
-    .order('kickoffTime');
-
-  if (error) throw error;
-  return data;
-}
-
 /** Fetch league members with rankings */
 export async function fetchLeagueStandings(leagueId: string) {
   const { data, error } = await getSupabase()
     .from('leagues')
-    .select('*, league_members(*, users(teamName, overallPoints, gameweekPoints))')
+    .select('*, league_members(*, fantasy_users(teamName, overallPoints, gameweekPoints, avatar_url))')
     .eq('id', leagueId)
     .single();
 
@@ -103,8 +124,8 @@ export async function saveSquad(squadData: {
     gameweek: squadData.gameweek,
     captainId: squadData.captainId,
     viceCaptainId: squadData.viceCaptainId,
-    budget: 100_000_000,
-    totalBudget: 100_000_000,
+    budget: 150_000_000,
+    totalBudget: 150_000_000,
     isLocked: false,
   };
 

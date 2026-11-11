@@ -16,17 +16,33 @@ function mkPlayer(
   totalPoints: number,
   extra?: Partial<Player>
 ): Player {
-  const forwardPositions: Position[] = ['Prop', 'Hooker', 'Lock', 'Flanker', 'Number 8'];
-  const positionGroup: PositionGroup = forwardPositions.includes(position) ? 'Forward' : 'Back';
+  const isFrontRow =
+    position === 'Loosehead Prop' ||
+    position === 'Tighthead Prop' ||
+    position === 'Hooker' ||
+    position === 'Front Row' ||
+    (position as string) === 'Prop';
 
-  // Kickoff times spread across a gameweek weekend
-  // IMPORTANT: use deterministic index (_id) instead of Math.random()
-  // to avoid Next.js hydration mismatch (server vs client render differently)
+  const isHooker = position === 'Hooker';
+
+  const isJumper =
+    position === 'Lock' ||
+    position === 'Blindside Flanker' ||
+    position === 'Openside Flanker' ||
+    position === 'Number 8' ||
+    position === 'Back Row' ||
+    (position as string) === 'Flanker' ||
+    extra?.isJumper === true;
+
+  const isForward = isFrontRow || isJumper;
+  const positionGroup: PositionGroup = isForward ? 'Forward' : 'Back';
+
+  // Kickoff times spread across Kenya Cup Matchday 1 (November 21, 2026)
   const kickoffTimes = [
-    '2026-10-03T14:00:00+03:00',
-    '2026-10-03T16:30:00+03:00',
-    '2026-10-04T14:00:00+03:00',
-    '2026-10-04T16:30:00+03:00',
+    '2026-11-21T14:00:00+03:00',
+    '2026-11-21T15:00:00+03:00',
+    '2026-11-21T16:00:00+03:00',
+    '2026-11-21T16:30:00+03:00',
   ];
   const matchKickoffTime = kickoffTimes[(_id - 1) % kickoffTimes.length];
 
@@ -40,9 +56,12 @@ function mkPlayer(
     club,
     position,
     positionGroup,
-    isJumper: position === 'Lock' || (position === 'Flanker' && extra?.isJumper === true),
-    isHooker: position === 'Hooker',
-    isFrontRow: position === 'Prop' || position === 'Hooker',
+    isJumper,
+    isHooker,
+    isFrontRow,
+    is_jumper: isJumper,
+    is_hooker: isHooker,
+    is_front_row: isFrontRow,
     tier,
     cost,
     matchKickoffTime,
@@ -62,7 +81,7 @@ function mkPlayer(
 // ─────────────────────────────────────────────────────────────────────────────
 export const MOCK_PLAYERS: Player[] = [
   // ── Kabras Sugar (4 players) ──────────────────────────────────────────────
-  mkPlayer('Brian Juma',        'Kabras Sugar', 'Prop',       'Tier 1', 10_000_000, 9.2, 187, { matchStatus: 'starting' }),
+  mkPlayer('Brian Juma',        'Kabras Sugar', 'Prop',       'Tier 1', 10_000_000, 9.2, 187, { matchStatus: 'starting', headshot_url: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793957845/kenya-cup/headshots/fb3henlmelcq4wpb6lks.avif' }),
   mkPlayer('Vincent Onyala',    'Kabras Sugar', 'Wing',       'Tier 1', 10_000_000, 9.5, 201, { matchStatus: 'starting' }),
   mkPlayer('Griffin Musyoki',   'Kabras Sugar', 'Flanker',    'Tier 2',  7_500_000, 7.8, 134, { matchStatus: 'bench' }),
   mkPlayer('Samuel Asati',      'Kabras Sugar', 'Scrum-half', 'Tier 2',  7_500_000, 8.1, 142, { matchStatus: 'starting' }),
@@ -135,27 +154,24 @@ export const MOCK_PLAYERS: Player[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIXTURES – Gameweek 4, Season 26/27
+// FIXTURES – Kenya Cup Matchday 1 (November 21, 2026)
 // ─────────────────────────────────────────────────────────────────────────────
 export const MOCK_FIXTURES: Fixture[] = [
-  { id: 'f1', gameweek: 4, homeClub: 'Kabras Sugar', awayClub: 'KCB Rugby',       kickoffTime: '2026-10-03T14:00:00+03:00', venue: 'Kakamega RFC Ground',   status: 'scheduled' },
-  { id: 'f2', gameweek: 4, homeClub: 'Menengai Oilers', awayClub: 'Kenya Harlequin', kickoffTime: '2026-10-03T14:00:00+03:00', venue: 'Nakuru Athletic Club',   status: 'scheduled' },
-  { id: 'f3', gameweek: 4, homeClub: 'Strathmore Leos', awayClub: 'Nondescripts',    kickoffTime: '2026-10-03T16:30:00+03:00', venue: 'Strathmore University',  status: 'scheduled' },
-  { id: 'f4', gameweek: 4, homeClub: 'KU Blak Blad', awayClub: 'Nakuru',           kickoffTime: '2026-10-04T14:00:00+03:00', venue: 'Kenyatta University',    status: 'scheduled' },
-  { id: 'f5', gameweek: 4, homeClub: 'Impala', awayClub: 'Mwamba',             kickoffTime: '2026-10-04T14:00:00+03:00', venue: 'Impala Club Nairobi',    status: 'scheduled' },
-  { id: 'f6', gameweek: 4, homeClub: 'Daystar Falcons', awayClub: 'JKUAT Cougars',   kickoffTime: '2026-10-04T16:30:00+03:00', venue: 'Daystar University',     status: 'scheduled' },
+  { id: '44b848f1-d645-47fb-8895-6d0ad28477a9', gameweek: 1, homeClub: 'Mwamba', awayClub: 'KU Blak Blad', kickoffTime: '2026-11-21T09:00:00+03:00', venue: 'Goan Institute Sports Grounds', status: 'scheduled' },
+  { id: 'acf7134d-b435-47cc-9535-20e00de3ec76', gameweek: 1, homeClub: 'Kabras Sugar', awayClub: 'KCB Rugby', kickoffTime: '2026-11-21T12:00:00+03:00', venue: 'Kakamega RFC', status: 'scheduled' },
+  { id: 'eee8e565-71c3-4f22-aeff-62d8fbc52c4a', gameweek: 1, homeClub: 'JKUAT Cougars', awayClub: 'Nakuru', kickoffTime: '2026-11-21T12:00:00+03:00', venue: 'JKUAT', status: 'scheduled' },
+  { id: '0ee1772c-8a7c-4c8e-8412-f8dd747e1b89', gameweek: 1, homeClub: 'Daystar Falcons', awayClub: 'Menengai Oilers', kickoffTime: '2026-11-21T12:00:00+03:00', venue: 'Daystar University', status: 'scheduled' },
+  { id: 'deb1d570-f96b-4ac0-8129-40376da1b618', gameweek: 1, homeClub: 'Kenya Harlequin', awayClub: 'Strathmore Leos', kickoffTime: '2026-11-21T12:00:00+03:00', venue: 'RFUEA Ground', status: 'scheduled' },
+  { id: '100922c0-7f80-4119-94f7-6bbcc0b38174', gameweek: 1, homeClub: 'Impala', awayClub: 'Nondescripts', kickoffTime: '2026-11-21T12:00:00+03:00', venue: 'Impala Grounds', status: 'scheduled' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GAMEWEEKS
 // ─────────────────────────────────────────────────────────────────────────────
 export const MOCK_GAMEWEEKS: Gameweek[] = [
-  { id: 1, season: '26/27', number: 1, name: 'Round 1', startDate: '2026-09-05', endDate: '2026-09-07', status: 'completed', deadlineTime: '2026-09-04T18:00:00+03:00' },
-  { id: 2, season: '26/27', number: 2, name: 'Round 2', startDate: '2026-09-12', endDate: '2026-09-14', status: 'completed', deadlineTime: '2026-09-11T18:00:00+03:00' },
-  { id: 3, season: '26/27', number: 3, name: 'Round 3', startDate: '2026-09-19', endDate: '2026-09-21', status: 'completed', deadlineTime: '2026-09-18T18:00:00+03:00' },
-  { id: 4, season: '26/27', number: 4, name: 'Round 4', startDate: '2026-10-03', endDate: '2026-10-05', status: 'active',    deadlineTime: '2026-10-02T18:00:00+03:00' },
-  { id: 5, season: '26/27', number: 5, name: 'Round 5', startDate: '2026-10-10', endDate: '2026-10-12', status: 'upcoming', deadlineTime: '2026-10-09T18:00:00+03:00' },
-  { id: 6, season: '26/27', number: 6, name: 'Round 6', startDate: '2026-10-17', endDate: '2026-10-19', status: 'upcoming', deadlineTime: '2026-10-16T18:00:00+03:00' },
+  { id: 1, season: '26/27', number: 1, name: 'Round 1', startDate: '2026-11-21', endDate: '2026-11-21', status: 'active', deadlineTime: '2026-11-21T08:00:00+03:00' },
+  { id: 2, season: '26/27', number: 2, name: 'Round 2', startDate: '2026-11-28', endDate: '2026-11-28', status: 'upcoming', deadlineTime: '2026-11-28T14:00:00+03:00' },
+  { id: 3, season: '26/27', number: 3, name: 'Round 3', startDate: '2026-12-05', endDate: '2026-12-05', status: 'upcoming', deadlineTime: '2026-12-05T14:00:00+03:00' },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,30 +180,51 @@ export const MOCK_GAMEWEEKS: Gameweek[] = [
 export const CURRENT_GAMEWEEK = MOCK_GAMEWEEKS.find(gw => gw.status === 'active')!;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLUB COLORS & ABBREVIATIONS
+// CLUB COLORS, ABBREVIATIONS & CLOUDINARY LOGOS
 // ─────────────────────────────────────────────────────────────────────────────
-export const CLUB_META: Record<string, { abbr: string; color: string; bg: string }> = {
-  'Kabras Sugar':    { abbr: 'KBS', color: '#10B981', bg: '#064E3B' },
-  'KCB Rugby':       { abbr: 'KCB', color: '#3B82F6', bg: '#1E3A5F' },
-  'Menengai Oilers': { abbr: 'MNO', color: '#F59E0B', bg: '#451A03' },
-  'Kenya Harlequin': { abbr: 'HQN', color: '#EC4899', bg: '#500724' },
-  'Strathmore Leos': { abbr: 'STR', color: '#8B5CF6', bg: '#2E1065' },
-  'KU Blak Blad':    { abbr: 'KUB', color: '#EF4444', bg: '#450A0A' },
-  'Nondescripts':    { abbr: 'NDX', color: '#06B6D4', bg: '#083344' },
-  'Nakuru':          { abbr: 'NAK', color: '#F97316', bg: '#431407' },
-  'Daystar Falcons': { abbr: 'DAY', color: '#84CC16', bg: '#1A2E05' },
-  'Impala':          { abbr: 'IMP', color: '#14B8A6', bg: '#042F2E' },
-  'Mwamba':          { abbr: 'MWA', color: '#A855F7', bg: '#3B0764' },
-  'JKUAT Cougars':   { abbr: 'JKU', color: '#F43F5E', bg: '#4C0519' },
+export const CLUB_META: Record<string, { abbr: string; color: string; bg: string; logo?: string }> = {
+  'Kabras Sugar':    { abbr: 'KBS', color: '#16a34a', bg: '#064E3B', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793961532/kenya-cup/logos/pjdrbuq9wnbiqzf3ckni.png' },
+  'KCB Rugby':       { abbr: 'KCB', color: '#2ec27e', bg: '#1E3A5F', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793961557/kenya-cup/logos/jpfjllflre1housszipi.webp' },
+  'Menengai Oilers': { abbr: 'MNO', color: '#7c3aed', bg: '#451A03', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960174/kenya-cup/logos/giki6nzcpp9pqbkczwon.jpg' },
+  'Kenya Harlequin': { abbr: 'HQN', color: '#c01c28', bg: '#500724', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960338/kenya-cup/logos/tg2wwgrtelgmwkhov3if.png' },
+  'Strathmore Leos': { abbr: 'STR', color: '#1c71d8', bg: '#2E1065', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960755/kenya-cup/logos/zmdkxfbmlmmp55iwihyz.png' },
+  'KU Blak Blad':    { abbr: 'KUB', color: '#c01c28', bg: '#450A0A', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793961181/kenya-cup/logos/ivn0cguxnrrctd5cykvt.jpg' },
+  'Nondescripts':    { abbr: 'NDX', color: '#b45309', bg: '#083344', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960450/kenya-cup/logos/gt4uv9n2afy2m8g2dfvo.svg' },
+  'Nakuru':          { abbr: 'NAK', color: '#0284c7', bg: '#431407', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960133/kenya-cup/logos/a2bylshrzscl56fqmsnn.jpg' },
+  'Daystar Falcons': { abbr: 'DAY', color: '#7c2d12', bg: '#1A2E05', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960232/kenya-cup/logos/ixmamslsjqecnsh2sznf.jpg' },
+  'Impala':          { abbr: 'IMP', color: '#000000', bg: '#042F2E', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960978/kenya-cup/logos/kjd5eljftyei24t5jqpe.jpg' },
+  'Mwamba':          { abbr: 'MWA', color: '#000000', bg: '#3B0764', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793960077/kenya-cup/logos/gvqd6m675nx5g53qhmvn.jpg' },
+  'JKUAT Cougars':   { abbr: 'JKU', color: '#ffffff', bg: '#4C0519', logo: 'https://res.cloudinary.com/dsidwfnbw/image/upload/v1793961362/kenya-cup/logos/jmfq64xb8dhs8e0jl5py.jpg' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POSITION DISPLAY HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 export const POSITION_ABBR: Record<string, string> = {
-  'Prop': 'PR', 'Hooker': 'HK', 'Lock': 'LK', 'Flanker': 'FL',
-  'Number 8': 'N8', 'Scrum-half': 'SH', 'Fly-half': 'FH',
-  'Center': 'CTR', 'Wing': 'WG', 'Full-back': 'FB',
+  // Granular Rugby Union Positions
+  'Loosehead Prop': 'LHP',
+  'Hooker': 'HK',
+  'Tighthead Prop': 'THP',
+  'Lock': 'LK',
+  'Blindside Flanker': 'BSF',
+  'Openside Flanker': 'OSF',
+  'Number 8': 'N8',
+  'Scrum-half': 'SH',
+  'Fly-half': 'FH',
+  'Inside Center': 'IC',
+  'Outside Center': 'OC',
+  'Left Wing': 'LW',
+  'Right Wing': 'RW',
+  'Fullback': 'FB',
+  'Utility Back': 'UB',
+  'Front Row': 'FR',
+  'Back Row': 'BR',
+  // Legacy designations
+  'Prop': 'PR',
+  'Flanker': 'FL',
+  'Center': 'CTR',
+  'Wing': 'WG',
+  'Full-back': 'FB',
 };
 
 // Pitch layout slots: slot index → { row, col, label }

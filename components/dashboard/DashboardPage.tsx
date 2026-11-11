@@ -1,19 +1,58 @@
 'use client';
+import { useEffect } from 'react';
 import { Clock, TrendingUp, Trophy, Users, ArrowUp, ArrowDown, Minus, ChevronRight, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { CURRENT_GAMEWEEK, MOCK_FIXTURES, MOCK_PLAYERS, MOCK_LEAGUE_MEMBERS, CLUB_META } from '@/lib/mockData';
+import { CURRENT_GAMEWEEK, MOCK_FIXTURES, MOCK_LEAGUE_MEMBERS } from '@/lib/mockData';
+import { usePlayersStore } from '@/lib/playerStore';
+import { useClubsStore } from '@/lib/clubStore';
+import { useFixtureStore } from '@/lib/fixtureStore';
+import { useLeagueStore, GLOBAL_LEAGUE_ID } from '@/lib/leagueStore';
+import { ClubLogo } from '@/components/common/ClubLogo';
+import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { getDeadlineCountdown } from '@/lib/fantasyRules';
 import { useSquadStore } from '@/store/squadStore';
 
 export function DashboardPage() {
   const { getRemainingBudget } = useSquadStore();
-  const countdown = getDeadlineCountdown(CURRENT_GAMEWEEK.deadlineTime);
+  const { players, fetchPlayers } = usePlayersStore();
+  const { getClubMeta, fetchClubs } = useClubsStore();
+  const { fixtures, fetchFixtures, activeRound } = useFixtureStore();
 
-  const topScorers = [...MOCK_PLAYERS]
+  // Sync latest clubs, players, and fixtures on mount
+  useEffect(() => {
+    fetchPlayers();
+    fetchClubs();
+    fetchFixtures();
+  }, [fetchPlayers, fetchClubs, fetchFixtures]);
+
+  const activeFixtures = fixtures.filter(
+    f => Number(f.gameweek || (f as unknown as { round?: number }).round) === activeRound
+  );
+  const displayedFixtures = activeFixtures.length > 0
+    ? activeFixtures
+    : (fixtures.length > 0 ? fixtures.slice(0, 6) : MOCK_FIXTURES);
+
+  // Compute deadline from the earliest fixture kickoff time
+  const earliestKickoff = displayedFixtures[0]?.kickoffTime || CURRENT_GAMEWEEK.deadlineTime;
+  const countdown = getDeadlineCountdown(earliestKickoff);
+  const formattedKickoff = new Date(earliestKickoff).toLocaleDateString('en-KE', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+
+  const topScorers = [...players]
     .sort((a, b) => b.totalPoints - a.totalPoints)
     .slice(0, 5);
 
-  const myTeam = MOCK_LEAGUE_MEMBERS.find(m => m.userId === 'me')!;
+  const leagues = useLeagueStore(s => s.leagues);
+  const globalLeague = leagues.find(l => l.id === GLOBAL_LEAGUE_ID) || leagues[0];
+  const leagueMembers = globalLeague?.members?.length ? globalLeague.members : MOCK_LEAGUE_MEMBERS;
+  const myTeam = leagueMembers.find(m => m.userId === 'me') || leagueMembers[0] || {
+    teamName: 'My Fantasy XV',
+    gameweekPoints: 74,
+    totalPoints: 534,
+    rank: 6,
+    rankChange: 2,
+  };
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
@@ -48,7 +87,7 @@ export function DashboardPage() {
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               marginBottom: '8px',
             }}>
-              ROUND {CURRENT_GAMEWEEK.number}
+              ROUND {activeRound}
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
               Kenya Cup Fantasy Rugby — build your dream XV
@@ -79,7 +118,7 @@ export function DashboardPage() {
               {countdown}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Fri 2 Oct · 18:00 EAT
+              {formattedKickoff} EAT
             </div>
           </div>
         </div>
@@ -100,7 +139,7 @@ export function DashboardPage() {
       {/* ── Stat Cards Row ───────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
         {[
-          { label: 'GW Points',    value: myTeam.gameweekPoints.toString(), icon: TrendingUp, color: 'var(--gold)',    sub: `Round ${CURRENT_GAMEWEEK.number}` },
+          { label: 'GW Points',    value: myTeam.gameweekPoints.toString(), icon: TrendingUp, color: 'var(--gold)',    sub: `Round ${activeRound}` },
           { label: 'Total Points', value: myTeam.totalPoints.toString(),    icon: Trophy,     color: '#8B5CF6', sub: 'Season 26/27' },
           { label: 'Overall Rank', value: `#${myTeam.rank}`,                icon: Users,      color: '#3B82F6', sub: '↑ 2 this week' },
           { label: 'Budget Left',  value: `${(getRemainingBudget() / 1_000_000).toFixed(1)}M`, icon: Zap, color: 'var(--neon)', sub: 'KES remaining' },
@@ -129,19 +168,19 @@ export function DashboardPage() {
         <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
           <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              Round 4 Fixtures
+              Round {activeRound} Fixtures
             </h2>
             <span className="badge badge-green">● Live</span>
           </div>
           <div>
-            {MOCK_FIXTURES.map((f, i) => {
-              const homeMeta = CLUB_META[f.homeClub];
-              const awayMeta = CLUB_META[f.awayClub];
+            {displayedFixtures.map((f, i) => {
+              const homeMeta = getClubMeta(f.homeClub);
+              const awayMeta = getClubMeta(f.awayClub);
               const time = new Date(f.kickoffTime).toLocaleDateString('en-KE', { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
               return (
                 <div key={f.id} style={{
                   padding: '14px 20px',
-                  borderBottom: i < MOCK_FIXTURES.length - 1 ? '1px solid var(--border)' : 'none',
+                  borderBottom: i < displayedFixtures.length - 1 ? '1px solid var(--border)' : 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   transition: 'background 0.15s',
                 }}
@@ -149,6 +188,7 @@ export function DashboardPage() {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <ClubLogo clubName={f.homeClub} size={24} />
                     <span style={{
                       fontSize: '11px', fontWeight: 700,
                       color: homeMeta.color, background: homeMeta.bg,
@@ -167,6 +207,7 @@ export function DashboardPage() {
                       color: awayMeta.color, background: awayMeta.bg,
                       padding: '2px 6px', borderRadius: '4px',
                     }}>{awayMeta.abbr}</span>
+                    <ClubLogo clubName={f.awayClub} size={24} />
                   </div>
                 </div>
               );
@@ -184,7 +225,7 @@ export function DashboardPage() {
           </div>
           <div>
             {topScorers.map((p, i) => {
-              const clubMeta = CLUB_META[p.club];
+              const clubMeta = getClubMeta(p.club);
               return (
                 <div key={p.id} style={{
                   padding: '12px 20px',
@@ -195,22 +236,19 @@ export function DashboardPage() {
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div style={{
-                    width: '28px', height: '28px', borderRadius: '50%',
-                    background: i === 0 ? 'linear-gradient(135deg, #A8891C, #D4AF37)' : 'var(--bg-surface)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '12px', fontWeight: 700,
-                    color: i === 0 ? '#000' : 'var(--text-muted)',
-                    flexShrink: 0,
-                  }}>
-                    {i + 1}
-                  </div>
+                  <PlayerAvatar
+                    name={p.name}
+                    headshotUrl={p.headshot_url}
+                    clubName={p.club}
+                    size={36}
+                  />
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
                       {p.name}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ClubLogo clubName={p.club} logoUrl={p.clubs?.logo_url || p.club_logo_url} size={16} showBorder={false} />
                       <span style={{ fontSize: '10px', fontWeight: 700, color: clubMeta.color, background: clubMeta.bg, padding: '1px 5px', borderRadius: '3px' }}>
                         {clubMeta.abbr}
                       </span>
@@ -233,7 +271,7 @@ export function DashboardPage() {
         {/* Mini-league preview */}
         <div className="card" style={{ padding: '0', overflow: 'hidden', gridColumn: '1 / -1' }}>
           <div style={{ padding: '20px 20px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '14px', fontWeight: 700 }}>My League — Round 4 Standings</h2>
+            <h2 style={{ fontSize: '14px', fontWeight: 700 }}>My League — Round {activeRound} Standings</h2>
             <Link href="/leagues" style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '2px' }}>
               Full table <ChevronRight size={12} />
             </Link>
@@ -250,10 +288,10 @@ export function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_LEAGUE_MEMBERS.slice(0, 5).map((m, i) => {
+                {leagueMembers.slice(0, 5).map((m, i) => {
                   const isMe = m.userId === 'me';
                   return (
-                    <tr key={m.userId} style={{
+                    <tr key={`${m.userId}-${i}`} style={{
                       borderBottom: i < 4 ? '1px solid var(--border)' : 'none',
                       background: isMe ? 'rgba(212,175,55,0.05)' : 'transparent',
                       transition: 'background 0.15s',

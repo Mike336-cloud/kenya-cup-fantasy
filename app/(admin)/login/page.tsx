@@ -1,8 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert, Lock, Mail, Eye, EyeOff, Loader2, ArrowLeft, CheckCircle, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
+import { ShieldAlert, Lock, Mail, Eye, EyeOff, Loader2, CheckCircle, ShieldCheck } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -43,11 +42,6 @@ export default function AdminLoginPage() {
     }
   };
 
-  const handleQuickMasterLogin = () => {
-    setEmail('lineoutsquadmike@gmail.com');
-    setPassword('KenyaCupAdmin2026!');
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -58,21 +52,6 @@ export default function AdminLoginPage() {
       padding: '24px',
       position: 'relative',
     }}>
-      {/* Return to Fan Portal Link */}
-      <div style={{ position: 'absolute', top: '24px', left: '24px' }}>
-        <Link href="/" style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          color: 'var(--text-muted)', textDecoration: 'none',
-          fontSize: '13px', fontWeight: 600,
-          padding: '8px 14px', borderRadius: '8px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          transition: 'all 0.2s',
-        }}>
-          <ArrowLeft size={14} /> Back to Fan Home
-        </Link>
-      </div>
-
       <div style={{
         width: '100%',
         maxWidth: '440px',
@@ -139,6 +118,7 @@ export default function AdminLoginPage() {
                 <input
                   type="email"
                   required
+                  autoComplete="off"
                   className="input"
                   placeholder="admin@kenyacup.co.ke"
                   value={email}
@@ -157,6 +137,7 @@ export default function AdminLoginPage() {
                 <input
                   type={showPw ? 'text' : 'password'}
                   required
+                  autoComplete="new-password"
                   className="input"
                   placeholder="••••••••••••"
                   value={password}
@@ -222,45 +203,6 @@ export default function AdminLoginPage() {
                 </>
               )}
             </button>
-
-            {/* Credentials Info & Quick Fill */}
-            <div style={{
-              marginTop: '10px',
-              padding: '14px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              lineHeight: 1.6,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontWeight: 800, color: '#FCD34D', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  🔑 Admin Access Credentials
-                </span>
-                <button
-                  type="button"
-                  onClick={handleQuickMasterLogin}
-                  style={{
-                    background: 'rgba(212,175,55,0.15)',
-                    border: '1px solid rgba(212,175,55,0.3)',
-                    color: '#FCD34D',
-                    borderRadius: '5px',
-                    padding: '2px 7px',
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  ⚡ Auto-Fill
-                </button>
-              </div>
-              <div><strong>Admin Email:</strong> <code style={{ color: '#E2E8F0' }}>lineoutsquadmike@gmail.com</code></div>
-              <div><strong>Master Key:</strong> <code style={{ color: '#E2E8F0' }}>KenyaCupAdmin2026!</code></div>
-              <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '6px' }}>
-                🛡️ Isolated Session: Logging in here will <strong>never</strong> log out or conflict with your fan account.
-              </div>
-            </div>
           </form>
         )}
 

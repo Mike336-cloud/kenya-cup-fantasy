@@ -1,43 +1,49 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Cloudinary URL helpers
-// Uploads can be any format (JPG/PNG) — we transform the delivery URL
-// to serve AVIF for smaller file sizes and better performance.
+// Delivers pristine, authorized Cloudinary CDN media URLs.
+// Automatically sanitizes unsigned transformation segments (which cause 401
+// Unauthorized on accounts with strict transformation restrictions).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Transform a Cloudinary URL to deliver as AVIF with auto quality.
- * e.g. .../image/upload/v123/kenya-cup/headshots/abc.jpg
- *   → .../image/upload/f_avif,q_auto/v123/kenya-cup/headshots/abc.jpg
+ * Clean any unsigned transformation parameters that cause 401 Unauthorized errors
+ * on Cloudinary accounts with strict transformation security.
  *
- * Falls back to original URL if it's not a Cloudinary URL.
+ * e.g. .../image/upload/f_auto,q_auto/v123/kenya-cup/logos/abc.jpg
+ *   → .../image/upload/v123/kenya-cup/logos/abc.jpg
  */
-export function toAvif(url: string | null | undefined): string | null {
+export function cleanCloudinaryUrl(url: string | null | undefined): string | null {
   if (!url) return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
 
-  // Only transform Cloudinary URLs
-  if (!url.includes('res.cloudinary.com')) return url;
+  if (!trimmed.includes('res.cloudinary.com')) {
+    return trimmed;
+  }
 
-  // Already has format transformation? Don't double-apply.
-  if (url.includes('f_avif') || url.includes('f_auto')) return url;
+  // Strip out any dynamic transformation path segments following /upload/
+  // Matches /upload/ followed by one or more comma-separated transformation flags (f_, q_, w_, h_, c_, g_)
+  const sanitized = trimmed.replace(
+    /\/upload\/(?:(?:f|q|w|h|c|g)_[a-zA-Z0-9_-]+,?)+\//g,
+    '/upload/'
+  );
 
-  // Insert f_avif,q_auto after /upload/
-  return url.replace('/upload/', '/upload/f_avif,q_auto/');
+  return sanitized;
 }
 
 /**
- * Transform a Cloudinary URL to deliver as AVIF with specific dimensions.
- * Useful for thumbnails and avatars.
+ * Return a clean, verified Cloudinary URL ready for public rendering.
  */
-export function toAvifThumb(url: string | null | undefined, width: number, height?: number): string | null {
-  if (!url) return null;
-  if (!url.includes('res.cloudinary.com')) return url;
+export function toOptimizedUrl(url: string | null | undefined): string | null {
+  return cleanCloudinaryUrl(url);
+}
 
-  const h = height ?? width;
-  const transform = `f_avif,q_auto,w_${width},h_${h},c_fill,g_face`;
+/** Backward compatible alias */
+export const toAvif = toOptimizedUrl;
 
-  if (url.includes('/upload/f_') || url.includes('/upload/w_')) {
-    return url; // Already transformed
-  }
-
-  return url.replace('/upload/', `/upload/${transform}/`);
+/**
+ * Thumbnail helper — safely delivers clean Cloudinary media URL.
+ */
+export function toAvifThumb(url: string | null | undefined, _width?: number, _height?: number): string | null {
+  return cleanCloudinaryUrl(url);
 }
