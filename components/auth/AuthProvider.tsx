@@ -39,9 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedAvatar = localStorage.getItem('kc_user_avatar');
-      if (storedAvatar) setAvatarUrl(storedAvatar);
       const storedTeam = localStorage.getItem('kc_user_team');
-      if (storedTeam) setTeamName(storedTeam);
+      if (storedAvatar || storedTeam) {
+        queueMicrotask(() => {
+          if (storedAvatar) setAvatarUrl(storedAvatar);
+          if (storedTeam) setTeamName(storedTeam);
+        });
+      }
     }
   }, []);
 

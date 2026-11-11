@@ -29,7 +29,7 @@ function generateInviteCode(): string {
 }
 
 // In-memory fallback leagues to ensure seamless functionality in development or offline mode
-let fallbackLeagues: League[] = [
+const fallbackLeagues: League[] = [
   {
     id: GLOBAL_LEAGUE_ID,
     name: GLOBAL_LEAGUE_NAME,
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
               type: data.type as 'public' | 'private',
               season: data.season,
               createdAt: data.created_at,
-              members: (data.league_members || []).map((m: any) => ({
+              members: (data.league_members || []).map((m: { userId: string; rank?: number; previousRank?: number; rankChange?: number }) => ({
                 userId: m.userId,
                 teamName: 'Manager Team',
                 totalPoints: 0,
@@ -151,8 +151,9 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({ success: true, leagues: userLeagues });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -236,7 +237,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Invite code is required.' }, { status: 400 });
       }
 
-      let targetLeague = fallbackLeagues.find(l => l.code.toUpperCase() === targetCode);
+      const targetLeague = fallbackLeagues.find(l => l.code.toUpperCase() === targetCode);
 
       if (supabase) {
         try {
@@ -309,8 +310,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: false, error: 'Invalid action.' }, { status: 400 });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 

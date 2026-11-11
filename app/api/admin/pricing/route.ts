@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { runPricingEngine } from '@/lib/pricingEngine';
 import { Player } from '@/types/fantasy';
@@ -18,7 +18,7 @@ function getAdminClient() {
  * POST /api/admin/pricing
  * Triggers transfer market pricing adjustments across all players.
  */
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const supabase = getAdminClient();
     if (!supabase) {
@@ -80,8 +80,9 @@ export async function POST(req: NextRequest) {
       updatedCount: adjustments.length,
       adjustments,
     });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 

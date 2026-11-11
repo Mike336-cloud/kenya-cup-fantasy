@@ -30,10 +30,11 @@ export async function GET() {
       const clubLookup = new Map((dbClubs || []).map(c => [c.name.toLowerCase().trim(), c]));
 
       // 2. Query players with explicit relational join
-      let { data, error } = await supabase
+      const { data: initialData, error } = await supabase
         .from('players')
         .select('*, clubs(id, name, logo_url, abbreviation, primary_color)')
         .order('name', { ascending: true });
+      let data = initialData;
 
       // 3. If database has fewer players than MOCK_PLAYERS, auto-seed the missing roster
       if (!error && Array.isArray(data) && data.length < MOCK_PLAYERS.length) {

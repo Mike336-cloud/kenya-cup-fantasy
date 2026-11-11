@@ -52,8 +52,9 @@ export async function GET(req: NextRequest) {
         gameweekPoints: 74,
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 
@@ -68,7 +69,7 @@ export async function PATCH(req: NextRequest) {
 
     const supabase = getAdminClient();
     if (supabase && userId) {
-      const updates: Record<string, any> = {};
+      const updates: Record<string, unknown> = {};
       if (avatar_url !== undefined) updates.avatar_url = avatar_url;
       if (teamName !== undefined) updates.teamName = teamName.trim();
       if (username !== undefined) updates.username = username.trim().toLowerCase();
@@ -94,8 +95,9 @@ export async function PATCH(req: NextRequest) {
         username: username || 'rugby_boss',
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 

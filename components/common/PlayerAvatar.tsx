@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useClubsStore } from '@/lib/clubStore';
 import { cleanCloudinaryUrl } from '@/lib/cloudinary';
 
@@ -22,16 +22,13 @@ export function PlayerAvatar({
   className,
   border,
 }: PlayerAvatarProps) {
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    setHasError(false);
-  }, [headshotUrl]);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   const getClubMeta = useClubsStore(s => s.getClubMeta);
   const meta = clubName ? getClubMeta(clubName) : { color: 'var(--gold)', bg: 'rgba(212,175,55,0.15)' };
 
   const finalUrl = cleanCloudinaryUrl(headshotUrl);
+  const hasError = Boolean(finalUrl && failedUrl === finalUrl);
   const initials = name
     .split(' ')
     .filter(Boolean)
@@ -73,7 +70,7 @@ export function PlayerAvatar({
           src={finalUrl}
           alt={name}
           loading="lazy"
-          onError={() => setHasError(true)}
+          onError={() => setFailedUrl(finalUrl)}
           style={{
             width: '100%',
             height: '100%',

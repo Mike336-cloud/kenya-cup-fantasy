@@ -109,9 +109,10 @@ export const useLeagueStore = create<LeagueStoreState>()(
           } else {
             set({ isLoading: false });
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           // If offline or fetch failed, keep local state
-          set({ isLoading: false, error: err.message });
+          const message = err instanceof Error ? err.message : 'Failed to fetch leagues';
+          set({ isLoading: false, error: message });
         }
       },
 
@@ -146,7 +147,7 @@ export const useLeagueStore = create<LeagueStoreState>()(
           });
 
           return { success: true, league: created };
-        } catch (err: any) {
+        } catch {
           // Local fallback creation if network fails
           const inviteCode = 'KC' + Math.random().toString(36).substring(2, 6).toUpperCase();
           const fallbackLeague: League = {
@@ -216,7 +217,7 @@ export const useLeagueStore = create<LeagueStoreState>()(
           });
 
           return { success: true, league: joined };
-        } catch (err: any) {
+        } catch {
           // Check local leagues for matching code
           const state = get();
           const localMatch = state.leagues.find(l => l.code.toUpperCase() === cleanCode);
@@ -299,7 +300,7 @@ export const useLeagueStore = create<LeagueStoreState>()(
         set(state => {
           const updatedLeagues = state.leagues.map(league => {
             const memberIndex = league.members.findIndex(m => m.userId === 'me');
-            let newMembers = [...league.members];
+            const newMembers = [...league.members];
 
             if (memberIndex >= 0) {
               newMembers[memberIndex] = {

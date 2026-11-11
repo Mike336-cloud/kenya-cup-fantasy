@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, Check, Upload, AlertTriangle, Search, Link as LinkIcon, RefreshCw } from 'lucide-react';
 import { formatCost } from '@/lib/fantasyRules';
-import { Player, Club, Position, RugbyPosition, RUGBY_POSITIONS, Tier, MatchStatus, Fixture } from '@/types/fantasy';
+import { Player, Club, Position, Tier, MatchStatus, Fixture } from '@/types/fantasy';
 import { usePlayersStore } from '@/lib/playerStore';
 import { useClubsStore } from '@/lib/clubStore';
 import { useFixtureStore, MutableFixture } from '@/lib/fixtureStore';
@@ -102,7 +102,6 @@ const CLUBS: Club[] = [
   'Strathmore Leos', 'KU Blak Blad', 'Nondescripts', 'Nakuru',
   'Daystar Falcons', 'Impala', 'Mwamba', 'JKUAT Cougars',
 ];
-const POSITIONS: RugbyPosition[] = RUGBY_POSITIONS;
 const TIERS: Tier[] = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
 const TIER_COSTS: Record<Tier, number> = { 'Tier 1': 10_000_000, 'Tier 2': 7_500_000, 'Tier 3': 5_500_000, 'Tier 4': 3_500_000 };
 const FORWARD_POSITIONS: Position[] = [
@@ -146,7 +145,9 @@ function PlayerModal({ player, onClose, onSave }: {
     if (!player && fixtures.length > 0) {
       const fx = findNextFixtureForClub(form.club, fixtures, activeRound);
       if (fx?.kickoffTime && form.matchKickoffTime === DEFAULT_ROUND_1_KICKOFF) {
-        setForm(prev => ({ ...prev, matchKickoffTime: fx.kickoffTime }));
+        queueMicrotask(() => {
+          setForm(prev => (prev.matchKickoffTime === DEFAULT_ROUND_1_KICKOFF ? { ...prev, matchKickoffTime: fx.kickoffTime } : prev));
+        });
       }
     }
   }, [player, fixtures, form.club, activeRound, form.matchKickoffTime]);

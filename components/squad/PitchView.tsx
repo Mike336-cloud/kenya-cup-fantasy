@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Plus, X, Crown, Star, Zap, Users, Repeat, Trash2, AlertCircle, Check, ArrowLeftRight, Lock } from 'lucide-react';
 import { useSquadStore } from '@/store/squadStore';
 import { useClubsStore } from '@/lib/clubStore';
@@ -971,15 +971,12 @@ function BenchSlotCard({
   onSelectForAction,
   onQuickSwap,
 }: BenchSlotCardProps) {
-  const [headshotFailed, setHeadshotFailed] = useState(false);
+  const [failedHeadshotUrl, setFailedHeadshotUrl] = useState<string | null>(null);
+  const headshotFailed = Boolean(player?.headshot_url && failedHeadshotUrl === player.headshot_url);
   const getClubMeta = useClubsStore(s => s.getClubMeta);
   const clubMeta = player ? getClubMeta(player.club) : null;
   const isBenchBoostOn = activeBooster === 'BENCH_BOOST' || activeBooster === 'bench';
   const isLocked = player ? isPlayerLocked(player) : false;
-
-  useEffect(() => {
-    setHeadshotFailed(false);
-  }, [player?.headshot_url]);
 
   if (!player) {
     return (
@@ -1119,7 +1116,7 @@ function BenchSlotCard({
             src={cleanCloudinaryUrl(player.headshot_url)!}
             alt={player.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={() => setHeadshotFailed(true)}
+            onError={() => setFailedHeadshotUrl(player.headshot_url || null)}
           />
         ) : (
           <span style={{ fontSize: '11px', fontWeight: 900, color: '#FFF' }}>
@@ -1204,11 +1201,8 @@ interface PitchSlotProps {
 }
 
 function PitchSlot({ slot, player, isCaptain, isViceCaptain, activeBooster, onAdd, onSelectForAction }: PitchSlotProps) {
-  const [headshotFailed, setHeadshotFailed] = useState(false);
-
-  useEffect(() => {
-    setHeadshotFailed(false);
-  }, [player?.headshot_url]);
+  const [failedHeadshotUrl, setFailedHeadshotUrl] = useState<string | null>(null);
+  const headshotFailed = Boolean(player?.headshot_url && failedHeadshotUrl === player.headshot_url);
 
   const getClubMeta = useClubsStore(s => s.getClubMeta);
   const clubMeta = player ? getClubMeta(player.club) : null;
@@ -1344,7 +1338,7 @@ function PitchSlot({ slot, player, isCaptain, isViceCaptain, activeBooster, onAd
                   src={cleanCloudinaryUrl(player.headshot_url)!}
                   alt={player.name}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }}
-                  onError={() => setHeadshotFailed(true)}
+                  onError={() => setFailedHeadshotUrl(player.headshot_url || null)}
                 />
               ) : (
                 player.name.split(' ').map(n => n[0]).join('').slice(0, 2)

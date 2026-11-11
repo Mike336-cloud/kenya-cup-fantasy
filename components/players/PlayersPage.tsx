@@ -6,11 +6,10 @@ import { formatCost, getPositionCategory } from '@/lib/fantasyRules';
 import { useSquadStore } from '@/store/squadStore';
 import { usePlayersStore } from '@/lib/playerStore';
 import { useClubsStore } from '@/lib/clubStore';
-import { Player, Position, RugbyPosition, RUGBY_POSITIONS, Club, Tier } from '@/types/fantasy';
+import { Player, Club, Tier } from '@/types/fantasy';
 import { PlayerAvatar } from '@/components/common/PlayerAvatar';
 import { ClubLogo } from '@/components/common/ClubLogo';
 
-const POSITIONS: RugbyPosition[] = RUGBY_POSITIONS;
 const POSITION_PILLS = ['All', 'Prop', 'Hooker', 'Lock', 'Flanker', 'Number 8', 'Scrum-half', 'Fly-half', 'Center', 'Wing', 'Fullback'];
 const TIERS: Tier[] = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'];
 const CLUBS: Club[] = ['Kabras Sugar', 'KCB Rugby', 'Menengai Oilers', 'Kenya Harlequin', 'Strathmore Leos', 'KU Blak Blad', 'Nondescripts', 'Nakuru', 'Daystar Falcons', 'Impala', 'Mwamba', 'JKUAT Cougars'];

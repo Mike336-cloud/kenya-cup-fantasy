@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { CldUploadWidget } from 'next-cloudinary';
+import { CldUploadWidget, CloudinaryUploadWidgetResults } from 'next-cloudinary';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useLeagueStore } from '@/lib/leagueStore';
-import { Camera, Check, Trophy, Users, Shield, ArrowLeft, Loader2, Sparkles, UserCheck } from 'lucide-react';
+import { Camera, Check, Trophy, Shield, ArrowLeft, Loader2, Sparkles, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ProfilePage() {
@@ -14,8 +14,8 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleAvatarSuccess = async (result: any) => {
-    const uploadedUrl = result?.info?.secure_url;
+  const handleAvatarSuccess = async (result: CloudinaryUploadWidgetResults) => {
+    const uploadedUrl = typeof result?.info === 'object' && result.info ? result.info.secure_url : undefined;
     if (!uploadedUrl) return;
 
     updateProfile({ avatarUrl: uploadedUrl });
